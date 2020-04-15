@@ -12,18 +12,26 @@
 
 #define N_CHAR 1024UL
 
-// function definition
-void stop_server();
-void deal_with_socket(u_int16_t port);
-void deal_with_client(int socket, unsigned int id);
-
-
 // Player structure definition
 struct Player {
     unsigned int id;
     char name[N_CHAR];
     unsigned int nb_objects_found;
 };
+
+// Game status
+enum Status {
+    WAITING, // waiting players (client connection authorized)
+    IN_PROGRESS, // game in progress (client can not initialize new connection)
+    COMPLETED // we have a winner ! (reload all data)
+};
+
+// function definition
+void stop_server();
+void close_sockets();
+void end(Player *winner);
+void deal_with_socket(u_int16_t port);
+void deal_with_client(int socket, unsigned int id);
 
 
 /*******************************
@@ -36,9 +44,13 @@ std::thread connection_dealer;
 std::vector<std::pair<std::thread,Player>> clients;
 std::mutex mtx_clients;
 
-// To define winner FIXME (see line 114)
-int winner_id = -1;
-std::mutex mtx_winner_id;
+// Game status
+Status current_status = COMPLETED;
+std::mutex mtx_status;
+
+// Who is the room leader (only he can start the game)
+unsigned int leader = -1;
+std::mutex mtx_leader;
 
 // Config file
 Json::Value config;
@@ -63,12 +75,53 @@ void exit_handler(int s) {
  */
 void stop_server() {
     connection_dealer.detach();
+    close_sockets();
+}
+
+/**
+ * Close all clients connections
+ */
+void close_sockets() {
     mtx_clients.lock();
     for (auto &i : clients) {
         i.first.detach(); // stop thread
         close(i.second.id); // stop socket (from id)
     }
     mtx_clients.unlock();
+}
+
+/**
+ * Tell to each client that a player win, and reload data
+ *
+ * @param winner the winner
+ */
+void end(Player *winner) {
+    mtx_status.lock();
+    current_status = COMPLETED;
+    mtx_status.unlock();
+
+    // Announce
+    std::string msg = "Player ";
+    msg += winner->name;
+    msg += " (id: ";
+    msg += std::to_string(winner->id);
+    msg += ") wins !";
+
+    // Server
+    std::cout << msg << std::endl;
+
+    // for each player
+    mtx_clients.lock();
+    for (auto &i : clients) {
+        send(i.second.id, msg.c_str(), msg.length(), 0);
+    }
+    mtx_clients.unlock();
+
+    close_sockets();
+
+    mtx_status.lock();
+    current_status = WAITING;
+    mtx_status.unlock();
 }
 
 /**
@@ -111,23 +164,10 @@ int main(int argc, char* argv[]) {
     // Start the connection catch thread
     connection_dealer = std::thread(deal_with_socket, port);
 
-    // FIXME le server doit-il vraiment s'eteindre lorsqu'un joueur gagne ?
-    mtx_winner_id.lock();
-    while (winner_id == -1) {
-        mtx_winner_id.unlock();
+    // infinite loop, the server will shutdown on kill (or Ctrl-C)
+    while (true) {
         mtx_main.lock(); // PASSIVE LOCK
-        mtx_winner_id.lock();
     }
-    mtx_winner_id.unlock();
-
-    mtx_winner_id.lock();
-    std::cout << "Player " << winner_id << " wins !" << std::endl;
-    mtx_winner_id.unlock();
-
-    // THE END
-    stop_server();
-    std::cout << "Shutdown server..." << std::endl;
-    return EXIT_SUCCESS;
 }
 
 /**
@@ -136,7 +176,89 @@ int main(int argc, char* argv[]) {
  * @param port for socket
  */
 void deal_with_socket(uint16_t port) {
-    //
+    int server_fd;
+    struct sockaddr_in address;
+    int opt = 1;
+    int addrlen = sizeof(address);
+
+    // Creating socket file descriptor  (IPv4 protocol, TCP : reliable &  connection oriented)
+    if ( (server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0 ) {
+        std::cerr << "Socket failed " << __FILE__ << " " << __LINE__ << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Forcefully attaching socket to the port <port>
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+        std::cerr << "setsockopt" << __FILE__ << " " << __LINE__ << std::endl;
+    }
+    address.sin_family = AF_INET; // IPv4 protocol
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons( port );
+
+    // Binds the socket to the address and port number
+    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address))) {
+        std::cerr << "Bind failed " << __FILE__ << " " << __LINE__ << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Puts the server socket in a passive mode (it waits for the client to approach the server to make a connection)
+    if (listen(server_fd, 3) < 0) {
+        std::cerr << "Listen " << __FILE__ << " " << __LINE__ << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Get max_player from config
+    mtx_config.lock();
+    int max_player = config["max_player"].asInt();
+    mtx_config.unlock();
+
+    unsigned int next_id;
+
+    // Let's change current status
+    mtx_status.lock();
+    current_status = WAITING;
+    mtx_status.unlock();
+
+    while(true) {
+        int new_socket;
+
+        // A new client connection... PASSIVE WAIT
+        if ( (new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+            std::cerr << "Accept " << __FILE__ << " " << __LINE__ << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        if (clients.size() < max_player && current_status == WAITING) {
+            mtx_clients.lock();
+            if (clients.empty()) {
+                next_id = 0;
+                mtx_clients.unlock();
+
+                // set leader
+                mtx_leader.lock();
+                leader = next_id;
+                mtx_leader.unlock();
+
+                mtx_clients.lock();
+            } else {
+                next_id = clients.back().second.id + 1;
+            }
+
+            std::cout << "Client " << next_id << "connected"<<std::endl;
+
+            clients.emplace_back(
+                std::thread(deal_with_client, new_socket, next_id),
+                new_socket
+            ); // emplace_back creates the std::pair...
+            mtx_clients.unlock();
+        } else {
+            close(new_socket);
+            // Maximum number of players already reached
+            // Or game already in progress
+        }
+
+        mtx_main.unlock(); // tells main about a new event...
+    }
 }
 
 /**
