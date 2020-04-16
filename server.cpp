@@ -10,6 +10,7 @@
 #include <thread>
 #include <mutex>
 #include <regex>
+#include <future>
 
 #define N_CHAR 1024UL
 
@@ -23,6 +24,7 @@ struct Player {
 // Game status
 enum Status {
     WAITING, // waiting players (client connection authorized)
+    STARTING, // to send start msg to each player
     IN_PROGRESS, // game in progress (client can not initialize new connection)
     COMPLETED // we have a winner ! (reload all data)
 };
@@ -31,8 +33,9 @@ enum Status {
 void stop_server();
 void close_sockets();
 void end(Player *winner);
-void deal_with_socket(u_int16_t port);
-void deal_with_client(int socket, unsigned int id);
+void deal_with_socket(u_int16_t port, std::future<void> exit_signal);
+void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal);
+void deal_with_game(std::future<void> exit_signal);
 
 
 /*******************************
@@ -40,10 +43,15 @@ void deal_with_client(int socket, unsigned int id);
 *******************************/
 std::mutex mtx_main; // to allow passive lock for main
 std::thread connection_dealer;
+std::thread game_dealer;
+std::promise<void> connection_dealer_exit_signal;
+std::promise<void> game_dealer_exit_signal;
 
 // Clients list
-std::map<unsigned int, std::pair<std::thread,Player>> clients;
+std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void> > > clients;
 std::vector<unsigned int> client_to_remove; // thread can not remove itself
+std::vector<unsigned int> new_player_has_join;
+std::vector<std::pair<unsigned int, unsigned int> > player_find_object;
 std::mutex mtx_clients;
 
 // Game status
@@ -76,7 +84,10 @@ void exit_handler(int s) {
  * Stop the server and terminate threads
  */
 void stop_server() {
+    connection_dealer_exit_signal.set_value();
+    game_dealer_exit_signal.set_value();
     connection_dealer.detach();
+    game_dealer.detach();
     close_sockets();
 }
 
@@ -86,10 +97,14 @@ void stop_server() {
 void close_sockets() {
     mtx_clients.lock();
     for (auto &i : clients) {
-        i.second.first.detach(); // stop thread
-        close(i.second.second.id); // stop socket (from id)
+        std::get<2>(i.second).set_value(); // send exit
+        close(std::get<1>(i.second).id); // stop socket (from id)
+    }
+    for (auto &i : clients) {
+        std::get<0>(i.second).detach(); // stop thread
     }
     clients.clear(); // clear player list
+    client_to_remove.clear();
     mtx_clients.unlock();
 }
 
@@ -104,11 +119,8 @@ void end(Player *winner) {
     mtx_status.unlock();
 
     // Announce
-    std::string msg = "Player ";
-    msg += winner->name;
-    msg += " (id: ";
+    std::string msg = "WIN=";
     msg += std::to_string(winner->id);
-    msg += ") wins !";
 
     // Server
     std::cout << msg << std::endl;
@@ -116,7 +128,7 @@ void end(Player *winner) {
     // for each player
     mtx_clients.lock();
     for (auto &i : clients) {
-        send(i.second.second.id, msg.c_str(), msg.length(), 0);
+        send((int) std::get<1>(i.second).id, msg.c_str(), msg.length(), 0);
     }
     mtx_clients.unlock();
 
@@ -135,7 +147,7 @@ void end(Player *winner) {
  */
 int main(int argc, char* argv[]) {
     // create handler
-    signal(SIGILL, exit_handler);
+    signal(SIGTERM, exit_handler);
     signal(SIGINT, exit_handler);
 
     if (argc != 3) {
@@ -165,7 +177,10 @@ int main(int argc, char* argv[]) {
     mtx_config.unlock();
 
     // Start the connection catch thread
-    connection_dealer = std::thread(deal_with_socket, port);
+    connection_dealer = std::thread(deal_with_socket, port, std::move(connection_dealer_exit_signal.get_future()));
+
+    // Start the game dealer
+    game_dealer = std::thread(deal_with_game, std::move(game_dealer_exit_signal.get_future()));
 
     // infinite loop, the server will shutdown on kill (or Ctrl-C)
     while (true) {
@@ -178,7 +193,7 @@ int main(int argc, char* argv[]) {
  *
  * @param port for socket
  */
-void deal_with_socket(uint16_t port) {
+void deal_with_socket(uint16_t port, std::future<void> exit_signal) {
     int server_fd;
     struct sockaddr_in address;
     int opt = 1;
@@ -222,7 +237,7 @@ void deal_with_socket(uint16_t port) {
     current_status = WAITING;
     mtx_status.unlock();
 
-    while(true) {
+    while(exit_signal.wait_for(std::chrono::nanoseconds(1)) == std::future_status::timeout) {
         int new_socket;
 
         // A new client connection... PASSIVE WAIT
@@ -231,40 +246,28 @@ void deal_with_socket(uint16_t port) {
             exit(EXIT_FAILURE);
         }
 
-        // remove lost clients
-        if (client_to_remove.size() > 0) {
-            mtx_clients.lock();
-            for(auto &i : client_to_remove) {
-                std::map<unsigned int, std::pair<std::thread, Player> >::iterator it = clients.find(i);
-                it->second.first.detach(); // stop thread
-                clients.erase( it );
-            }
-            client_to_remove.clear();
-            mtx_clients.unlock();
-        }
-
         if (clients.size() < max_player && current_status == WAITING) {
+            next_id = (unsigned int) new_socket;
             mtx_clients.lock();
             if (clients.empty()) {
-                next_id = 0;
                 mtx_clients.unlock();
 
                 // set leader
                 mtx_leader.lock();
-                leader = (int) next_id;
+                leader = new_socket;
                 mtx_leader.unlock();
 
                 mtx_clients.lock();
-            } else {
-                next_id = clients.rbegin()->second.second.id + 1;
             }
 
             std::cout << "Client " << next_id << " connected"<<std::endl;
 
             Player p = {next_id, "", 0};
-            clients[next_id] = std::make_pair(
-                std::thread(deal_with_client, new_socket, next_id),
-                p
+            std::promise<void> exitSignal;
+            clients[next_id] = std::make_tuple(
+                std::thread(deal_with_client, new_socket, next_id, std::move(exitSignal.get_future())),
+                p,
+                std::move(exitSignal)
             );
             mtx_clients.unlock();
         } else {
@@ -274,7 +277,113 @@ void deal_with_socket(uint16_t port) {
             // Or game already in progress
         }
 
-        mtx_main.unlock(); // tells main about a new event...
+        mtx_main.unlock(); // tells main about a new connection...
+    }
+}
+
+/**
+ * Thread that will manage the game (new player, send data to all clients...)
+ */
+void deal_with_game(std::future<void> exit_signal) {
+    while (exit_signal.wait_for(std::chrono::milliseconds(100)) == std::future_status::timeout) {
+        // remove lost clients
+        if (client_to_remove.size() > 0) {
+            mtx_clients.lock();
+            for(auto &i : client_to_remove) {
+                std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it = clients.find(i);
+                std::get<2>(it->second).set_value();
+                std::get<0>(it->second).detach(); // stop thread
+                clients.erase( it );
+            }
+            // Tell to other player
+            for(auto &i : client_to_remove) {
+                std::string msg = "PLAYERLEFT=";
+                msg += std::to_string(i);
+                for (auto &c : clients) {
+                    send((int) std::get<1>(c.second).id, msg.c_str(), msg.length(), 0);
+                }
+            }
+            client_to_remove.clear();
+
+            // Reset status if all players have left
+            if (clients.empty()) {
+                mtx_clients.unlock();
+                mtx_status.lock();
+                current_status = WAITING;
+                mtx_status.unlock();
+            } else {
+                mtx_clients.unlock();
+            }
+        }
+
+        // Send start msg to all players
+        if (current_status == STARTING) {
+            std::string msg = "START";
+            mtx_clients.lock();
+            for (auto &i : clients) {
+                send((int) std::get<1>(i.second).id, msg.c_str(), msg.length(), 0);
+            }
+            mtx_clients.unlock();
+            std::cout << msg << std::endl; // server
+
+            mtx_status.lock();
+            current_status = IN_PROGRESS;
+            mtx_status.unlock();
+        }
+
+        // Send new player msg to all players
+        if (new_player_has_join.size() > 0) {
+            std::string msg;
+            mtx_clients.lock();
+            for (auto &i : new_player_has_join) {
+                std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it = clients.find(i);
+                msg = "PLAYER=";
+                msg += std::to_string( std::get<1>(it->second).id ) + ":";
+                msg += std::get<1>(it->second).name + ":";
+                msg += std::to_string( std::get<1>(it->second).nb_objects_found );
+
+                std::cout << msg << std::endl;
+
+                for (auto &i : clients) {
+                    if (std::get<1>(i.second).id != std::get<1>(it->second).id)
+                        send((int) std::get<1>(i.second).id, msg.c_str(), msg.length(), 0);
+                }
+            }
+            new_player_has_join.clear();
+            mtx_clients.unlock();
+        }
+
+        // Send player find object msg to all players
+        if (player_find_object.size() > 0) {
+            mtx_config.lock();
+            int nb_object = config["objects"].size();
+            mtx_config.unlock();
+
+            std::string msg;
+            mtx_clients.lock();
+            for (auto &i : player_find_object) {
+                std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void> > >::iterator it = clients.find(i.first);
+                msg = "PLAYERFIND=";
+                msg += std::to_string( std::get<1>(it->second).id) + ":";
+                msg += std::to_string(i.second);
+
+                std::cout << msg << std::endl;
+
+                for (auto &i : clients) {
+                    send((int) std::get<1>(i.second).id, msg.c_str(), msg.length(), 0);
+                }
+
+                // check if he win
+                if ((int) std::get<1>(it->second).nb_objects_found == nb_object) {
+                    mtx_clients.unlock();
+                    end(&(std::get<1>(it->second)));
+                    mtx_clients.lock();
+                    break; // Stop loop (to prevent multi-win)
+                }
+            }
+            player_find_object.clear();
+            mtx_clients.unlock();
+        }
     }
 }
 
@@ -284,13 +393,12 @@ void deal_with_socket(uint16_t port) {
  * @param socket
  * @param id client id (= player id)
  */
-void deal_with_client(int socket, unsigned int id) {
-    // TODO start game, object_found, new_player_has_join, player_find_object, send data (objects, player, id)
-
+void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal) {
     char buffer[N_CHAR];
     size_t valread;
 
     bool is_registred = false; // if not, player can not ask for start, send position or request data
+    bool is_an_exist_from_client = false;
 
     // Get objects list (from config file)
     mtx_config.lock();
@@ -298,33 +406,78 @@ void deal_with_client(int socket, unsigned int id) {
     mtx_config.unlock();
 
     //
-    do {
-        valread = read( socket , buffer, N_CHAR); // PASSIVE WAIT
-        buffer[valread-1] = '\0'; // FIXME : buffer overflow may occurs
+    while(exit_signal.wait_for(std::chrono::nanoseconds(1)) == std::future_status::timeout) {
+        valread = read(socket , buffer, N_CHAR); // PASSIVE WAIT
+        buffer[valread-1] = '\0';
+
+        if (valread == 0) {
+            is_an_exist_from_client = true;
+            break;
+        }
+        if (exit_signal.wait_for(std::chrono::nanoseconds(1)) != std::future_status::timeout) break;
 
         std::string message(buffer);
 
         // define commands regex
         std::regex username("USERNAME=[A-Za-z0-9]+");
         std::regex position("POSITION=[-0-9]+:[-0-9]+:[-0-9]+");
+        std::regex askstart("ASKSTART");
+        std::regex objectfound("FOUND=[0-9]+");
 
         // match regex
-        if (regex_match(message, username)) {
+        if (regex_match(message, username) && !is_registred) {
             std::cout << "Received username" << std::endl;
 
             mtx_clients.lock();
-            std::map<unsigned int, std::pair<std::thread, Player> >::iterator it = clients.find(id);
+            std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it = clients.find(id);
 
             // overwrite
-            it->second.second.name = message.substr(9); // 9 is size of "USERNAME="
+            std::get<1>(it->second).name = message.substr(9); // 9 is size of "USERNAME="
 
             mtx_clients.unlock();
 
             is_registred = true;
 
-            // TODO send data (object list, player list, client id)
+            /* Send data */
+            std::string msg = std::to_string(id);
+
+            // Send client id
+            send(socket, msg.c_str(), msg.length(), 0);
+
+            // Send every objects
+            for (unsigned int i = 0 ; i < objs.size() ; i++) {
+                mtx_config.lock();
+                msg = "OBJECT=";
+                msg += objs[i]["type"].asString() +":";
+                msg += objs[i]["sound"].asString() +":";
+                msg += objs[i]["position"]["x"].asString() + ":";
+                msg += objs[i]["position"]["y"].asString() + ":";
+                msg += objs[i]["position"]["z"].asString() +":";
+                msg += objs[i]["direction"]["x"].asString() + ":";
+                msg += objs[i]["direction"]["y"].asString() + ":";
+                msg += objs[i]["direction"]["z"].asString();
+                mtx_config.unlock();
+
+                send(socket, msg.c_str(), msg.length(), 0);
+            }
+
+            // Send player list
+            mtx_clients.lock();
+            for (std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>>>::iterator it=clients.begin() ; it != clients.end() ; ++it) {
+                msg = "PLAYER=";
+                msg += std::to_string( std::get<1>(it->second).id) + ":";
+                msg += std::get<1>(it->second).name + ":";
+                msg += std::to_string( std::get<1>(it->second).nb_objects_found );
+                mtx_clients.unlock();
+
+                send(socket, msg.c_str(), msg.length(), 0);
+                mtx_clients.lock();
+            }
+
+            new_player_has_join.push_back(id); // add to queue
+            mtx_clients.unlock();
         }
-        else if (regex_match(message, position) && is_registred) {
+        else if (regex_match(message, position) && is_registred && current_status == IN_PROGRESS) {
             std::string _pos = message.substr(9);
             std::tuple<int, int, int> coor;
             int x, y, z;
@@ -345,22 +498,50 @@ void deal_with_client(int socket, unsigned int id) {
             // TODO do something with coor
             std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
         }
+        else if (regex_match(message, askstart) && is_registred && (int) id == leader && current_status == WAITING) {
+            std::cout << "Leader asks to start" << std::endl;
+            mtx_status.lock();
+            current_status = STARTING;
+            mtx_status.unlock();
+        }
+        else if (regex_match(message, objectfound) && is_registred && current_status == IN_PROGRESS) {
+            unsigned int object_id = stoi(message.substr(6));
 
-    } while(valread != 0);
+            // check object exist
+            mtx_config.lock();
+            if (objs[object_id].isObject()) {
+                mtx_config.unlock();
 
-    std::cout << "Connection ended with "<< id <<std::endl; // this may not appear as a race condition is running between main and this thread...
+                mtx_clients.lock();
+                std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it = clients.find(id);
+                // overwrite
+                std::get<1>(it->second).nb_objects_found++;
+
+                player_find_object.push_back( std::make_pair(id, object_id)); // add to queue
+                mtx_clients.unlock();
+            } else {
+                mtx_config.unlock();
+            }
+        }
+        else {
+            // default
+            std::cout << "Client (id: " << id << ") sent an unknown message" << std::endl;
+        }
+
+    }
+
+    std::cout << "Connection ended with "<< id <<std::endl;
 
     // if it was the leader
-    // TODO if this thread was killed for any reason, assure that a leader is present in clients list (How ?)
     if ((int) id == leader) {
         if (clients.size() > 1) {
             mtx_leader.unlock();
 
             mtx_clients.lock();
             unsigned int _id = 999;
-            for (std::map<unsigned int, std::pair<std::thread, Player>>::iterator it=clients.begin() ; it != clients.end() ; ++it) {
-                if (_id > it->second.second.id && it->second.second.id != id) {
-                    _id = it->second.second.id;
+            for (std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>>>::iterator it=clients.begin() ; it != clients.end() ; ++it) {
+                if (_id > std::get<1>(it->second).id && std::get<1>(it->second).id != id) {
+                    _id = std::get<1>(it->second).id;
                 }
             }
             mtx_clients.unlock();
@@ -376,8 +557,10 @@ void deal_with_client(int socket, unsigned int id) {
         std::cout << "New leader : "<<leader<<std::endl;
     }
 
-    // remove myself
-    mtx_clients.lock();
-    client_to_remove.push_back(id);
-    mtx_clients.unlock();
+    if (is_an_exist_from_client) {
+        // remove myself
+        mtx_clients.lock();
+        client_to_remove.push_back(id);
+        mtx_clients.unlock();
+    }
 }
