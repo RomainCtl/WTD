@@ -448,8 +448,9 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
             for (unsigned int i = 0 ; i < objs.size() ; i++) {
                 mtx_config.lock();
                 msg = "OBJECT=";
-                msg += objs[i]["type"].asString() +":";
-                msg += objs[i]["sound"].asString() +":";
+                msg += std::to_string( id ) + ":";
+                msg += objs[i]["type"].asString() + ":";
+                msg += objs[i]["sound"].asString() + ":";
                 msg += objs[i]["position"]["x"].asString() + ":";
                 msg += objs[i]["position"]["y"].asString() + ":";
                 msg += objs[i]["position"]["z"].asString() +":";
