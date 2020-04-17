@@ -208,6 +208,7 @@ void deal_with_socket(uint16_t port, std::future<void> exit_signal) {
     // Forcefully attaching socket to the port <port>
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
         std::cerr << "setsockopt" << __FILE__ << " " << __LINE__ << std::endl;
+        exit(EXIT_FAILURE);
     }
     address.sin_family = AF_INET; // IPv4 protocol
     address.sin_addr.s_addr = INADDR_ANY;
