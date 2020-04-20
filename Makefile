@@ -4,6 +4,10 @@
 # nom du programme à construire
 EXEC = main
 
+# Server conf
+SERVER_CONFIG_FILE = server_config.json
+SERVER_PORT = 8080
+
 # liste des modules utilisateur : tous les .cpp (privés de cette extension) du dossier courant
 MODULES = $(basename $(wildcard [A-Z]*.cpp))
 
@@ -65,3 +69,9 @@ clean:
 # suppression des fichiers objets des librairies
 cleanlibs:
 	rm -fr $(addsuffix .o,$(MODULES_LIBS))
+
+build-serv: ## To build server
+	g++ -Wall -Wextra -Wconversion -ansi -Wpedantic -std=gnu++11 server.cpp -o server -ljsoncpp -lpthread
+
+run-serv: build-serv ## To run server
+	./server $(SERVER_PORT) $(SERVER_CONFIG_FILE)

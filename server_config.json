@@ -1,0 +1,9 @@
+{
+    "name":"La marre (au canard)",
+    "max_player": 3,
+    "objects":
+    [
+        {"type":"duck", "sound":"data/sound.wav", "position":{"x":-10,"y":-5,"z":0}, "direction":{"x":0,"y":-45,"z":12}},
+        {"type":"duck", "sound":"data/sound.wav", "position":{"x":10,"y":5,"z":0}, "direction":{"x":0,"y":45,"z":12}}
+    ]
+}
