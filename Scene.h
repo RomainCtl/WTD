@@ -7,13 +7,9 @@
 
 #include "Light.h"
 
-#include "Duck.h"
+#include "Object.h"
 #include "Ground.h"
 
-// List of object type
-enum ObjectType {
-    DUCK
-};
 
 
 class Scene
@@ -21,7 +17,7 @@ class Scene
 private:
 
     // objets de la scène
-    std::map<unsigned int, Duck*> m_Ducks;
+    std::map<unsigned int, Object*> m_Objects;
     Ground* m_Ground;
 
     // lampes
@@ -106,7 +102,7 @@ public:
      * @param dir_y Y direction coordinate
      * @param dir_z Z direction coordinate
      */
-    void addObject(unsigned int id, ObjectType type, std::string sound, double pos_x, double pos_y, double pos_z, double dir_x, double dir_y, double dir_z);
+    void addObject(unsigned int id, ObjectType type, char* sound, double pos_x, double pos_y, double pos_z, double dir_x, double dir_y, double dir_z);
 };
 
 #endif

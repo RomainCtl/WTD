@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <stdlib.h>
+#include <sys/socket.h>
 
 #include <utils.h>
 #include "Scene.h"
@@ -149,6 +150,10 @@ int main(int argc,char **argv)
     // création de la scène => création des objets...
     scene = new Scene();
     //debugGLFatal("new Scene()");
+
+    // FIXME remove me
+    scene->addObject(1, ObjectType::DUCK, (char*)"data/Duck-quacking-sound.wav", -5, 0, -10, 0, 0, 0);
+    scene->addObject(2, ObjectType::DUCK, (char*)"data/Duck-quacking-sound.wav", 5, 0, -10, 0, 90, 0);
 
     // enregistrement des fonctions callbacks
     glfwSetFramebufferSizeCallback(window, onSurfaceChanged);

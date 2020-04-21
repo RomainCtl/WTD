@@ -8,8 +8,12 @@
 #include <MaterialTexture.h>
 #include <gl-matrix.h>
 
+// List of object type
+enum ObjectType {
+    DUCK
+};
 
-class Duck: public Mesh
+class Object: public Mesh
 {
 private:
 
@@ -30,11 +34,16 @@ private:
 
 public:
 
-    /** constructeur, crée le maillage */
-    Duck();
+    /**
+     * constructeur, crée le maillage
+     *
+     * @param type object type
+     * @param soudn path to sound file
+     */
+    Object(ObjectType type, char* sound);
 
     /** destructeur, libère le maillage et l'audio */
-    ~Duck();
+    ~Object();
 
     /**
      * dessiner le canard

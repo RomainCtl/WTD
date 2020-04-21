@@ -176,13 +176,13 @@ void Scene::onDrawFrame()
     mat4 tmp_v;
     vec4 pos;
 
-    for (auto &duck : m_Ducks) {
-        mat4::translate(tmp_v, m_MatV, std::get<1>(duck)->getPosition());
+    for (auto &object : m_Objects) {
+        mat4::translate(tmp_v, m_MatV, std::get<1>(object)->getPosition());
         vec4::transformMat4(pos, vec4::fromValues(0,0,0,1), tmp_v);
         if (vec4::length(pos) < 5) {
-            std::cout<<"Canard " << std::to_string(std::get<0>(duck)) << " trouvé !" <<std::endl;
-            std::get<1>(duck)->setDraw(true);
-            std::get<1>(duck)->setSound(false);
+            std::cout<<"Objet " << std::to_string(std::get<0>(object)) << " trouvé !" <<std::endl;
+            std::get<1>(object)->setDraw(true);
+            std::get<1>(object)->setSound(false);
 
             // TODO send msg to server
         }
@@ -195,8 +195,8 @@ void Scene::onDrawFrame()
 
     // fournir position et direction en coordonnées caméra aux objets éclairés
     m_Ground->setLight(m_Light);
-    for (auto &duck : m_Ducks) {
-        std::get<1>(duck)->setLight(m_Light);
+    for (auto &object : m_Objects) {
+        std::get<1>(object)->setLight(m_Light);
     }
 
 
@@ -209,8 +209,8 @@ void Scene::onDrawFrame()
     m_Ground->onDraw(m_MatP, m_MatV);
 
     // dessiner le canard en mouvement
-    for (auto &duck : m_Ducks) {
-        std::get<1>(duck)->onRender(m_MatP, m_MatV);
+    for (auto &object : m_Objects) {
+        std::get<1>(object)->onRender(m_MatP, m_MatV);
     }
 
 }
@@ -218,10 +218,10 @@ void Scene::onDrawFrame()
 
 /** supprime tous les objets de cette scène */
 Scene::~Scene() {
-    for (auto &duck : m_Ducks) {
-        delete std::get<1>(duck);
+    for (auto &object : m_Objects) {
+        delete std::get<1>(object);
     }
-    m_Ducks.clear();
+    m_Objects.clear();
     delete m_Ground;
 }
 
@@ -238,11 +238,11 @@ Scene::~Scene() {
  * @param dir_y Y direction coordinate
  * @param dir_z Z direction coordinate
  */
-void Scene::addObject(unsigned int id, ObjectType type, std::string sound, double pos_x, double pos_y, double pos_z, double dir_x, double dir_y, double dir_z) {
-    Duck *tmp = new Duck(); // add sound in param
+void Scene::addObject(unsigned int id, ObjectType type, char* sound, double pos_x, double pos_y, double pos_z, double dir_x, double dir_y, double dir_z) {
+    Object *tmp = new Object(type, sound);
     tmp->setPosition(vec3::fromValues(pos_x, pos_y, pos_z));
     tmp->setOrientation(vec3::fromValues(dir_x, Utils::radians(dir_y), dir_z));
     tmp->setDraw(false);
     tmp->setSound(true);
-    m_Ducks[id] = tmp;
+    m_Objects[id] = tmp;
 }
