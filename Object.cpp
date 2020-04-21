@@ -13,24 +13,40 @@
 
 #include <utils.h>
 
-#include <Duck.h>
+#include <Object.h>
 #include <Light.h>
 #include <Texture2D.h>
 
 using namespace mesh;
 
 
-/** constructeur */
-Duck::Duck(): Mesh("Duck")
-{
+/**
+ * constructeur, crée le maillage
+ *
+ * @param type object type
+ * @param soudn path to sound file
+ */
+Object::Object(ObjectType type, char* sound): Mesh("Object") {
     // matériaux
-    m_Material = new MaterialTexture("data/10602_Rubber_Duck_v1_diffuse.jpg");
+    if (type == ObjectType::DUCK) {
+        m_Material = new MaterialTexture("data/10602_Rubber_Duck_v1_diffuse.jpg");
+    } else {
+        std::cerr << "Unable to find this object type..." << std::endl;
+        alGetError();
+        throw std::runtime_error("Unknown object type");
+    }
     setMaterials(m_Material);
     m_Draw = false;
     m_Sound = false;
 
     // charger le fichier obj
-    loadObj("data/10602_Rubber_Duck_v1_L3.obj");
+    if (type == ObjectType::DUCK) {
+        loadObj("data/10602_Rubber_Duck_v1_L3.obj");
+    } else {
+        std::cerr << "Unable to find this object type..." << std::endl;
+        alGetError();
+        throw std::runtime_error("Unknown object type");
+    }
 
     // mise à l'échelle et rotation du canard (son .obj est mal orienté et trop grand)
     mat4 correction = mat4::create();
@@ -43,7 +59,7 @@ Duck::Duck(): Mesh("Duck")
     computeNormals();
 
     // ouverture du flux audio à placer dans le buffer
-    std::string soundpathname = "data/Duck-quacking-sound.wav";
+    std::string soundpathname = sound;
     buffer = alutCreateBufferFromFile(soundpathname.c_str());
     if (buffer == AL_NONE) {
         std::cerr << "unable to open file " << soundpathname << std::endl;
@@ -76,17 +92,17 @@ Duck::Duck(): Mesh("Duck")
  * définit la lampe
  * @param light : instance de Light spécifiant les caractéristiques de la lampe
  */
-void Duck::setLight(Light* light)
+void Object::setLight(Light* light)
 {
     m_Material->setLight(light);
 }
 
-void Duck::setDraw(bool b)
+void Object::setDraw(bool b)
 {
 	m_Draw = b;
 }
 
-void Duck::setSound(bool b)
+void Object::setSound(bool b)
 {
 	if (m_Sound && !b) alSourceStop(source);
 	if (!m_Sound && b) alSourcePlay(source);
@@ -98,7 +114,7 @@ void Duck::setSound(bool b)
      * @param matP : matrice de projection
      * @param matMV : matrice view*model (caméra * position objet)
  */
-void Duck::onRender(const mat4& matP, const mat4& matVM)
+void Object::onRender(const mat4& matP, const mat4& matVM)
 {
    	/** dessin OpenGL **/
    	mat4 local_vm;
@@ -132,31 +148,31 @@ void Duck::onRender(const mat4& matP, const mat4& matVM)
 
 
 
-vec3& Duck::getPosition()
+vec3& Object::getPosition()
 {
     return m_Position;
 }
 
-void Duck::setPosition(vec3 pos)
+void Object::setPosition(vec3 pos)
 {
     vec3::copy(m_Position, pos);
 }
 
 
 
-vec3& Duck::getOrientation()
+vec3& Object::getOrientation()
 {
     return m_Orientation;
 }
 
-void Duck::setOrientation(vec3 ori)
+void Object::setOrientation(vec3 ori)
 {
     vec3::copy(m_Orientation, ori);
 }
 
 
 /** destructeur */
-Duck::~Duck()
+Object::~Object()
 {
     // libération du matériau
     delete m_Material;

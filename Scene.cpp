@@ -14,22 +14,7 @@
 
 
 /** constructeur */
-Scene::Scene()
-{
-    // créer les objets à dessiner
-    m_Duck_ch1 = new Duck();
-    m_Duck_ch1->setPosition(vec3::fromValues(-5.0, 0.0, -10.0));
-    m_Duck_ch1->setOrientation(vec3::fromValues(0.0, Utils::radians(0), 0.0));
-    m_Duck_ch1->setDraw(false);
-    m_Duck_ch1->setSound(true);
-
-    m_Duck_ch2 = new Duck();
-    m_Duck_ch2->setPosition(vec3::fromValues(5.0, 0.0, -10.0));
-    m_Duck_ch2->setOrientation(vec3::fromValues(0.0, Utils::radians(90), 0.0));
-    m_Duck_ch2->setDraw(false);
-    m_Duck_ch2->setSound(true);
-
-
+Scene::Scene() {
     m_Ground = new Ground();
 
     // caractéristiques de la lampe
@@ -58,6 +43,10 @@ Scene::Scene()
     m_Distance  = 10.0;
     m_Center    = vec3::create();
     m_Clicked   = false;
+
+    // init mouse position
+    m_MousePrecX = 0.0;
+    m_MousePrecY = 0.0;
 }
 
 
@@ -187,20 +176,16 @@ void Scene::onDrawFrame()
     mat4 tmp_v;
     vec4 pos;
 
-    mat4::translate(tmp_v, m_MatV, m_Duck_ch1->getPosition());
-    vec4::transformMat4(pos, vec4::fromValues(0,0,0,1), tmp_v);
-    if (vec4::length(pos) < 5) {
-    	std::cout<<"Canard 1 trouvé !" <<std::endl;
-    	m_Duck_ch1->setDraw(true);
-    	m_Duck_ch1->setSound(false);
-    }
+    for (auto &object : m_Objects) {
+        mat4::translate(tmp_v, m_MatV, std::get<1>(object)->getPosition());
+        vec4::transformMat4(pos, vec4::fromValues(0,0,0,1), tmp_v);
+        if (vec4::length(pos) < 5) {
+            std::cout<<"Objet " << std::to_string(std::get<0>(object)) << " trouvé !" <<std::endl;
+            std::get<1>(object)->setDraw(true);
+            std::get<1>(object)->setSound(false);
 
-    mat4::translate(tmp_v, m_MatV, m_Duck_ch2->getPosition());
-    vec4::transformMat4(pos, vec4::fromValues(0,0,0,1), tmp_v);
-    if (vec4::length(pos) < 5) {
-    	std::cout<<"Canard 2 trouvé !" <<std::endl;
-    	m_Duck_ch2->setDraw(true);
-    	m_Duck_ch2->setSound(false);
+            // TODO send msg to server
+        }
     }
 
     /** gestion des lampes **/
@@ -210,8 +195,9 @@ void Scene::onDrawFrame()
 
     // fournir position et direction en coordonnées caméra aux objets éclairés
     m_Ground->setLight(m_Light);
-    m_Duck_ch1->setLight(m_Light);
-    m_Duck_ch2->setLight(m_Light);
+    for (auto &object : m_Objects) {
+        std::get<1>(object)->setLight(m_Light);
+    }
 
 
     /** dessin de l'image **/
@@ -223,17 +209,40 @@ void Scene::onDrawFrame()
     m_Ground->onDraw(m_MatP, m_MatV);
 
     // dessiner le canard en mouvement
-    m_Duck_ch1->onRender(m_MatP, m_MatV);
-
-    m_Duck_ch2->onRender(m_MatP, m_MatV);
+    for (auto &object : m_Objects) {
+        std::get<1>(object)->onRender(m_MatP, m_MatV);
+    }
 
 }
 
 
 /** supprime tous les objets de cette scène */
-Scene::~Scene()
-{
-    delete m_Duck_ch1;
-    delete m_Duck_ch2;
+Scene::~Scene() {
+    for (auto &object : m_Objects) {
+        delete std::get<1>(object);
+    }
+    m_Objects.clear();
     delete m_Ground;
+}
+
+/**
+ * To add an object to the scene
+ *
+ * @param id object unique id
+ * @param type object type
+ * @param sound path to sound file
+ * @param pos_x X position coordinate
+ * @param pos_y Y position coordinate
+ * @param pos_z Z position coordinate
+ * @param dir_x X direction coordinate
+ * @param dir_y Y direction coordinate
+ * @param dir_z Z direction coordinate
+ */
+void Scene::addObject(unsigned int id, ObjectType type, char* sound, double pos_x, double pos_y, double pos_z, double dir_x, double dir_y, double dir_z) {
+    Object *tmp = new Object(type, sound);
+    tmp->setPosition(vec3::fromValues(pos_x, pos_y, pos_z));
+    tmp->setOrientation(vec3::fromValues(dir_x, Utils::radians(dir_y), dir_z));
+    tmp->setDraw(false);
+    tmp->setSound(true);
+    m_Objects[id] = tmp;
 }

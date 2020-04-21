@@ -7,8 +7,9 @@
 
 #include "Light.h"
 
-#include "Duck.h"
+#include "Object.h"
 #include "Ground.h"
+
 
 
 class Scene
@@ -16,8 +17,7 @@ class Scene
 private:
 
     // objets de la scène
-    Duck* m_Duck_ch1;
-    Duck* m_Duck_ch2;
+    std::map<unsigned int, Object*> m_Objects;
     Ground* m_Ground;
 
     // lampes
@@ -88,6 +88,21 @@ public:
 
     /** Dessine l'image courante */
     void onDrawFrame();
+
+    /**
+     * To add an object to the scene
+     *
+     * @param id object unique id
+     * @param type object type
+     * @param sound path to sound file
+     * @param pos_x X position coordinate
+     * @param pos_y Y position coordinate
+     * @param pos_z Z position coordinate
+     * @param dir_x X direction coordinate
+     * @param dir_y Y direction coordinate
+     * @param dir_z Z direction coordinate
+     */
+    void addObject(unsigned int id, ObjectType type, char* sound, double pos_x, double pos_y, double pos_z, double dir_x, double dir_y, double dir_z);
 };
 
 #endif

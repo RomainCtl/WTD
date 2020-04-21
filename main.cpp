@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <stdlib.h>
+#include <sys/socket.h>
 
 #include <utils.h>
 #include "Scene.h"
@@ -103,8 +104,12 @@ void error_callback(int error, const char* description)
 
 
 /** point d'entrée du programme **/
-int main(int argc,char **argv)
-{
+int main(int argc,char **argv) {
+    // Client enter his/her name
+    std::string username;
+    std::cout << "Enter your USERNAME: ";
+    std::cin >> username;
+
     // initialisation de GLFW
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
@@ -149,6 +154,10 @@ int main(int argc,char **argv)
     // création de la scène => création des objets...
     scene = new Scene();
     //debugGLFatal("new Scene()");
+
+    // FIXME remove me
+    scene->addObject(1, ObjectType::DUCK, (char*)"data/Duck-quacking-sound.wav", -5, 0, -10, 0, 0, 0);
+    scene->addObject(2, ObjectType::DUCK, (char*)"data/Duck-quacking-sound.wav", 5, 0, -10, 0, 90, 0);
 
     // enregistrement des fonctions callbacks
     glfwSetFramebufferSizeCallback(window, onSurfaceChanged);
