@@ -36,7 +36,7 @@ struct Player {
 struct ObjectDef {
     unsigned int id;
     ObjectType type;
-    char* sound;
+    std::string sound;
     double pos_x;
     double pos_y;
     double pos_z;
@@ -313,7 +313,7 @@ int main(int argc, char *argv[]) {
     // define commands regex
     std::regex id("ID=[0-9]+");
     std::regex player("PLAYER=[0-9]+:[A-Za-z0-9]+:[0-9]+");
-    std::regex object("OBJECT=[0-9]+:[a-z]+:[a-zA-z/._-]:[0-9-]+:[0-9-]+:[0-9-]+:[0-9-]+:[0-9-]+:[0-9-]+");
+    std::regex object("OBJECT=[0-9]+:[a-z]+:[A-Za-z0-9/._-]+:[0-9-.]+:[0-9-.]+:[0-9-.]+:[0-9-.]+:[0-9-.]+:[0-9-.]+");
     std::regex playerleft("PLAYERLEFT=[0-9]+");
     std::regex start("START");
     std::regex playerfind("PLAYERFIND=[0-9]+:[0-9]+");
@@ -345,41 +345,38 @@ int main(int argc, char *argv[]) {
                 std::string _o = current_msg.substr(7);
                 unsigned int objectid;
                 double pos_x, pos_y, pos_z, dir_x, dir_y, dir_z;
-                std::string str_type, str_sound;
+                std::string str_type, sound;
                 ObjectType type;
-                char* sound = {0};
 
                 std::cout << "New object: " << _o << std::endl;
 
-                objectid = stoi( _o.substr( _o.find(":") ) );
+                objectid = stoi( _o.substr(0, _o.find(":") ) );
                 _o.erase(0, _o.find(":") + 1);
 
-                str_type = _o.substr( _o.find(":") );
+                str_type = _o.substr(0, _o.find(":") );
                 if (str_type == "duck")
                     type = ObjectType::DUCK;
                 else {
-
+                    // EXIT
                 }
                 _o.erase(0, _o.find(":") + 1);
-
-                str_sound = _o.substr( _o.find(":") );
-                strcpy(sound, str_sound.c_str());
+                sound = _o.substr(0, _o.find(":") );
 
                 // position
                 _o.erase(0, _o.find(":") + 1);
-                pos_x = stod( _o.substr( _o.find(":") ) );
+                pos_x = stod( _o.substr(0, _o.find(":") ) );
                 _o.erase(0, _o.find(":") + 1);
-                pos_y = stod( _o.substr( _o.find(":") ) );
+                pos_y = stod( _o.substr(0, _o.find(":") ) );
                 _o.erase(0, _o.find(":") + 1);
-                pos_z = stod( _o.substr( _o.find(":") ) );
+                pos_z = stod( _o.substr(0, _o.find(":") ) );
 
                 // direction
                 _o.erase(0, _o.find(":") + 1);
-                dir_x = stod( _o.substr( _o.find(":") ) );
+                dir_x = stod( _o.substr(0, _o.find(":") ) );
                 _o.erase(0, _o.find(":") + 1);
-                dir_y = stod( _o.substr( _o.find(":") ) );
+                dir_y = stod( _o.substr(0, _o.find(":") ) );
                 _o.erase(0, _o.find(":") + 1);
-                dir_z = stod( _o.substr( _o.find(":") ) );
+                dir_z = stod( _o.substr(0, _o.find(":") ) );
 
                 mtx_objects.lock();
                 objects[objectid] = {objectid, type, sound, pos_x, pos_y, pos_z, dir_x, dir_y, dir_z};
@@ -392,11 +389,11 @@ int main(int argc, char *argv[]) {
 
                 std::cout << "New player: " << _p << std::endl;
 
-                playerid = stoi( _p.substr( _p.find(":") ) );
+                playerid = stoi( _p.substr(0, _p.find(":") ) );
                 _p.erase(0, _p.find(":") + 1);
-                name = _p.substr( _p.find(":") );
+                name = _p.substr(0, _p.find(":") );
                 _p.erase(0, _p.find(":") + 1);
-                nb_object_found = stoi( _p.substr( _p.find(":") ) );
+                nb_object_found = stoi( _p.substr(0, _p.find(":") ) );
 
                 mtx_players.lock();
                 players[playerid] = {playerid, name, nb_object_found};

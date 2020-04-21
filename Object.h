@@ -40,7 +40,7 @@ public:
      * @param type object type
      * @param soudn path to sound file
      */
-    Object(ObjectType type, char* sound);
+    Object(ObjectType type, std::string sound);
 
     /** destructeur, libère le maillage et l'audio */
     ~Object();
