@@ -6,16 +6,24 @@
 #include <AL/alc.h>
 #include <AL/alut.h>
 
+#include <unistd.h>
 #include <iostream>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <thread>
 #include <mutex>
 #include <regex>
 #include <future>
+#include <signal.h>
+#include <cstdlib>
 
 #include <utils.h>
 #include "Scene.h"
+
+#define N_CHAR 1024UL
+// To delimite each socket msgs
+const std::string MSG_DELIMITER = "$";
 
 // Player structure definition
 struct Player {
@@ -40,7 +48,8 @@ struct ObjectDef {
 // Game status
 enum Status {
     WAITING,
-    IN_PROGRESS
+    IN_PROGRESS,
+    COMPLETED
 };
 
 /** Global variable */
@@ -55,8 +64,9 @@ std::map<unsigned int, ObjectDef> objects;
 std::thread interface_dealer;
 std::promise<void> interface_dealer_exit_signal;
 
+std::mutex mtx_status;
 Status current_status = Status::WAITING;
-int client_socket;
+int client_socket = 0;
 
 /**
  * Scène à dessiner
@@ -238,17 +248,111 @@ void deal_with_interface(std::future<void> exit_signal) {
     );
 }
 
+/**
+ * Catch kill signal
+ *
+ * @param s signal
+ */
+void exit_handler(int s) {
+    std::cout << "Caught signal " << s << std::endl;
+    interface_dealer_exit_signal.set_value();
+    interface_dealer.detach();
+    exit(EXIT_SUCCESS);
+}
+
 /** point d'entrée du programme **/
-int main(int argc,char **argv) {
+int main(int argc, char *argv[]) {
+    // Get params
+    if (argc != 3) {
+        std::cerr << "Usage: " << argv[0] << "<server_ip_address> <server_port>" << std::endl;
+        return EXIT_FAILURE;
+    }
+    char* addr = argv[1];
+    uint16_t port = (u_int16_t) atoi(argv[2]);
+
     // Client enter his/her name
     std::cout << "Enter your USERNAME: ";
     std::cin >> username;
 
-    // TODO
+    std::regex accepted_username("^[A-Za-z]+$");
+    if (!regex_match(username, accepted_username)) {
+        std::cerr << "Username must contain only upper or lower case letters! " << std::endl;
+        return EXIT_FAILURE;
+    }
 
-    // interface_dealer = std::thread(deal_with_interface, std::move(interface_dealer_exit_signal.get_future()));
+    // Socket stuff
+    size_t valread;
+    struct sockaddr_in serv_addr;
 
-    // TODO
+    if ( (client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
+        std::cout << "Socket creation Error !" << std::endl;
+        return EXIT_FAILURE;
+    }
 
+    serv_addr.sin_family = AF_INET; // IPv4 protocol
+    serv_addr.sin_port = htons( port );
+
+    // Convert IPv4 or IPv6 addr from text to binary form
+    if (inet_pton(AF_INET, addr, &serv_addr.sin_addr) <= 0) {
+        std::cout << "Invalid address/ Address not supported !" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    if ( connect(client_socket, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0 ) {
+        std::cout << "Connection failed !" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    // Sign up
+    std::string msg = "USERNAME=";
+    msg += username;
+    msg += MSG_DELIMITER;
+    send(client_socket, msg.c_str(), msg.length(), 0);
+
+    // define commands regex
+    std::regex id("ID=[0-9]+");
+    std::regex player("PLAYER=[0-9]+:[A-Za-z0-9]+:[0-9]+");
+    std::regex object("OBJECT=[0-9]+:[a-z]+:[a-zA-z/._-]:[0-9-]+:[0-9-]+:[0-9-]+:[0-9-]+:[0-9-]+:[0-9-]+");
+    std::regex playerleft("PLAYERLEFT=[0-9]+");
+    std::regex start("START");
+    std::regex playerfind("PLAYERFIND=[0-9]+:[0-9]+");
+    std::regex end("WIN=[0-9]+");
+
+    std::string messages;
+    char buffer[N_CHAR];
+
+    do {
+        valread = read(client_socket , buffer, N_CHAR); // PASSIVE WAIT
+        buffer[valread] = '\0';
+
+        if (valread == 0) break; // avoid unnecessary treatments
+
+        messages += buffer;
+
+        // Split buffer in real messages
+        size_t pos = 0;
+        while ( (pos = messages.find(MSG_DELIMITER)) != std::string::npos ) {
+            std::string current_msg(messages.substr(0, pos));
+            messages.erase(0, pos + MSG_DELIMITER.length());
+
+            std::cout << "Received: " << current_msg << std::endl;
+
+            if (regex_match(current_msg, start)) {
+                mtx_status.lock();
+                current_status = Status::IN_PROGRESS;
+                mtx_status.unlock();
+
+                interface_dealer = std::thread(deal_with_interface, std::move(interface_dealer_exit_signal.get_future()));
+                signal(SIGTERM, exit_handler);
+                signal(SIGINT, exit_handler);
+            }
+        }
+    } while (valread != 0 && current_status != Status::COMPLETED);
+
+    // stop interface thread if exist
+    try {
+        interface_dealer_exit_signal.set_value();
+        interface_dealer.detach();
+    } catch (std::exception const& e) {}
     return EXIT_SUCCESS;
 }

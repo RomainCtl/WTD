@@ -349,8 +349,6 @@ void deal_with_game(std::future<void> exit_signal) {
                 msg += std::to_string( std::get<1>(it->second).nb_objects_found );
                 msg += MSG_DELIMITER;
 
-                std::cout << msg << std::endl;
-
                 for (auto &i : clients) {
                     if (std::get<1>(i.second).id != std::get<1>(it->second).id)
                         send((int) std::get<1>(i.second).id, msg.c_str(), msg.length(), 0);
@@ -424,7 +422,7 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
     //
     while(exit_signal.wait_for(std::chrono::nanoseconds(1)) == std::future_status::timeout) {
         valread = read(socket , buffer, N_CHAR); // PASSIVE WAIT
-        buffer[valread-1] = '\0';
+        buffer[valread] = '\0';
 
         if (valread == 0) {
             is_an_exist_from_client = true;
@@ -443,7 +441,7 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
 
             // match regex
             if (regex_match(current_msg, username) && !is_registred) {
-                std::cout << "Received username" << std::endl;
+                std::cout << "Received username: " << current_msg << std::endl;
 
                 mtx_clients.lock();
                 std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it = clients.find(id);
@@ -466,7 +464,7 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
                 for (unsigned int i = 0 ; i < objs.size() ; i++) {
                     mtx_config.lock();
                     msg = "OBJECT=";
-                    msg += std::to_string( id ) + ":";
+                    msg += std::to_string( i+1 ) + ":";
                     msg += objs[i]["type"].asString() + ":";
                     msg += objs[i]["sound"].asString() + ":";
                     msg += objs[i]["position"]["x"].asString() + ":";

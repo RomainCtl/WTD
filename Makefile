@@ -19,7 +19,7 @@ MODULES_INCS = $(sort $(dir $(wildcard libs/*/*.h)))
 
 # options de compilation et librairies
 CXXFLAGS = -std=c++11 -I. -Ilibs $(addprefix -I,$(MODULES_INCS)) -I/usr/include/SDL2 -g # -O3
-LIBS = -lGLEW -lGL -lGLU -lglfw -lSDL2 -lSDL2_image -lopenal -lalut
+LIBS = -lGLEW -lGL -lGLU -lglfw -lSDL2 -lSDL2_image -lopenal -lalut -lpthread
 
 
 #### Ne pas modifier au delà (sauf si vous savez ce que vous faites)
