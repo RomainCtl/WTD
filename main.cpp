@@ -54,6 +54,7 @@ enum Status {
 
 /** Global variable */
 std::string username;
+int userid = -1;
 
 std::mutex mtx_players;
 std::map<unsigned int, Player> players;
@@ -335,16 +336,142 @@ int main(int argc, char *argv[]) {
             std::string current_msg(messages.substr(0, pos));
             messages.erase(0, pos + MSG_DELIMITER.length());
 
-            std::cout << "Received: " << current_msg << std::endl;
+            if (regex_match(current_msg, id) && current_status == Status::WAITING && userid == -1) {
+                std::string _id = current_msg.substr(3);
+                userid = stoi(_id);
+                std::cout << "My ID: " << std::to_string(userid) << std::endl;
+            }
+            else if (regex_match(current_msg, object) && current_status == Status::WAITING && userid != -1) {
+                std::string _o = current_msg.substr(7);
+                unsigned int objectid;
+                double pos_x, pos_y, pos_z, dir_x, dir_y, dir_z;
+                std::string str_type, str_sound;
+                ObjectType type;
+                char* sound = {0};
 
-            if (regex_match(current_msg, start)) {
+                std::cout << "New object: " << _o << std::endl;
+
+                objectid = stoi( _o.substr( _o.find(":") ) );
+                _o.erase(0, _o.find(":") + 1);
+
+                str_type = _o.substr( _o.find(":") );
+                if (str_type == "duck")
+                    type = ObjectType::DUCK;
+                else {
+
+                }
+                _o.erase(0, _o.find(":") + 1);
+
+                str_sound = _o.substr( _o.find(":") );
+                strcpy(sound, str_sound.c_str());
+
+                // position
+                _o.erase(0, _o.find(":") + 1);
+                pos_x = stod( _o.substr( _o.find(":") ) );
+                _o.erase(0, _o.find(":") + 1);
+                pos_y = stod( _o.substr( _o.find(":") ) );
+                _o.erase(0, _o.find(":") + 1);
+                pos_z = stod( _o.substr( _o.find(":") ) );
+
+                // direction
+                _o.erase(0, _o.find(":") + 1);
+                dir_x = stod( _o.substr( _o.find(":") ) );
+                _o.erase(0, _o.find(":") + 1);
+                dir_y = stod( _o.substr( _o.find(":") ) );
+                _o.erase(0, _o.find(":") + 1);
+                dir_z = stod( _o.substr( _o.find(":") ) );
+
+                mtx_objects.lock();
+                objects[objectid] = {objectid, type, sound, pos_x, pos_y, pos_z, dir_x, dir_y, dir_z};
+                mtx_objects.unlock();
+            }
+            else if (regex_match(current_msg, player) && current_status == Status::WAITING && userid != -1) {
+                std::string _p = current_msg.substr(7);
+                unsigned int playerid, nb_object_found;
+                std::string name;
+
+                std::cout << "New player: " << _p << std::endl;
+
+                playerid = stoi( _p.substr( _p.find(":") ) );
+                _p.erase(0, _p.find(":") + 1);
+                name = _p.substr( _p.find(":") );
+                _p.erase(0, _p.find(":") + 1);
+                nb_object_found = stoi( _p.substr( _p.find(":") ) );
+
+                mtx_players.lock();
+                players[playerid] = {playerid, name, nb_object_found};
+                mtx_players.unlock();
+            }
+            else if (regex_match(current_msg, playerleft) && userid != -1) {
+                std::string _pid = current_msg.substr(11);
+                int playerid = stoi(_pid);
+
+                mtx_players.lock();
+                std::map<unsigned int, Player>::iterator it = players.find(playerid);
+                if (it != players.end()) {
+                    std::cout << "Player '" << it->second.name << "' leave" << std::endl;
+                    players.erase(it);
+                }
+                mtx_players.unlock();
+
+            }
+            else if (regex_match(current_msg, start) && current_status == Status::WAITING && userid != -1) {
                 mtx_status.lock();
                 current_status = Status::IN_PROGRESS;
                 mtx_status.unlock();
 
+                std::cout << "Let's go !" << std::endl;
+
                 interface_dealer = std::thread(deal_with_interface, std::move(interface_dealer_exit_signal.get_future()));
                 signal(SIGTERM, exit_handler);
                 signal(SIGINT, exit_handler);
+            }
+            else if (regex_match(current_msg, playerfind) && current_status == Status::IN_PROGRESS && userid != -1) {
+                std::string _pid = current_msg.substr(11);
+                int playerid = stoi(_pid);
+
+                current_msg.erase(0, current_msg.find(":") + 1);
+                std::string _oid = current_msg;
+                int objectid = stoi(_oid);
+
+                mtx_players.lock();
+                std::map<unsigned int, Player>::iterator it = players.find(playerid);
+                if (it != players.end()) {
+                    it->second.nb_objects_found += 1;
+
+                    std::cout << "Player '" << it->second.name << "' found object id: " << std::to_string(objectid) << std::endl;
+                }
+                mtx_players.unlock();
+            }
+            else if (regex_match(current_msg, end) && current_status == Status::IN_PROGRESS && userid != -1) {
+                mtx_status.lock();
+                current_status = Status::COMPLETED;
+                mtx_status.unlock();
+
+                std::string _id = current_msg.substr(4);
+                int winnerid = stoi(_id);
+
+                if (winnerid == userid) {
+                    std::cout << "$$$$$$$$$$$$$$$" << std::endl;
+                    std::cout << "$$ YOU WIN ! $$" << std::endl;
+                    std::cout << "$$$$$$$$$$$$$$$" << std::endl << std::endl;
+                }
+
+                // Score board
+                mtx_players.lock();
+                std::cout << "========= ScoreBoard =========" << std::endl;
+                for (auto &user : players) {
+                    Player p = std::get<1>(user);
+                    std::string msg = "";
+
+                    if (p.id == userid) msg += "*";
+                    msg += p.name + " (id: " + std::to_string(p.id) +") = " + std::to_string(p.nb_objects_found);
+                    if (p.id == winnerid) msg += " WINNER";
+
+                    std::cout << msg << std::endl;
+                }
+                std::cout << "==============================" << std::endl;
+                mtx_players.unlock();
             }
         }
     } while (valread != 0 && current_status != Status::COMPLETED);
