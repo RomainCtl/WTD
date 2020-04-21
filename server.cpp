@@ -406,6 +406,12 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
     const Json::Value &objs = config["objects"]; // array of objects
     mtx_config.unlock();
 
+    // define commands regex
+    std::regex username("USERNAME=[A-Za-z0-9]+");
+    std::regex position("POSITION=[-0-9]+:[-0-9]+:[-0-9]+");
+    std::regex askstart("ASKSTART");
+    std::regex objectfound("FOUND=[0-9]+");
+
     //
     while(exit_signal.wait_for(std::chrono::nanoseconds(1)) == std::future_status::timeout) {
         valread = read(socket , buffer, N_CHAR); // PASSIVE WAIT
@@ -418,12 +424,6 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
         if (exit_signal.wait_for(std::chrono::nanoseconds(1)) != std::future_status::timeout) break;
 
         std::string message(buffer);
-
-        // define commands regex
-        std::regex username("USERNAME=[A-Za-z0-9]+");
-        std::regex position("POSITION=[-0-9]+:[-0-9]+:[-0-9]+");
-        std::regex askstart("ASKSTART");
-        std::regex objectfound("FOUND=[0-9]+");
 
         // match regex
         if (regex_match(message, username) && !is_registred) {
