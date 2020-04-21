@@ -9,10 +9,54 @@
 #include <iostream>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <thread>
+#include <mutex>
+#include <regex>
+#include <future>
 
 #include <utils.h>
 #include "Scene.h"
 
+// Player structure definition
+struct Player {
+    unsigned int id;
+    std::string name;
+    unsigned int nb_objects_found;
+};
+
+// ObjectDef structure definition
+struct ObjectDef {
+    unsigned int id;
+    ObjectType type;
+    char* sound;
+    double pos_x;
+    double pos_y;
+    double pos_z;
+    double dir_x;
+    double dir_y;
+    double dir_z;
+};
+
+// Game status
+enum Status {
+    WAITING,
+    IN_PROGRESS
+};
+
+/** Global variable */
+std::string username;
+
+std::mutex mtx_players;
+std::map<unsigned int, Player> players;
+
+std::mutex mtx_objects;
+std::map<unsigned int, ObjectDef> objects;
+
+std::thread interface_dealer;
+std::promise<void> interface_dealer_exit_signal;
+
+Status current_status = Status::WAITING;
+int client_socket;
 
 /**
  * Scène à dessiner
@@ -102,14 +146,10 @@ void error_callback(int error, const char* description)
     std::cerr << "GLFW error : " << description << std::endl;
 }
 
-
-/** point d'entrée du programme **/
-int main(int argc,char **argv) {
-    // Client enter his/her name
-    std::string username;
-    std::cout << "Enter your USERNAME: ";
-    std::cin >> username;
-
+/**
+ * Thread to manage interface
+*/
+void deal_with_interface(std::future<void> exit_signal) {
     // initialisation de GLFW
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
@@ -155,9 +195,21 @@ int main(int argc,char **argv) {
     scene = new Scene();
     //debugGLFatal("new Scene()");
 
-    // FIXME remove me
-    scene->addObject(1, ObjectType::DUCK, (char*)"data/Duck-quacking-sound.wav", -5, 0, -10, 0, 0, 0);
-    scene->addObject(2, ObjectType::DUCK, (char*)"data/Duck-quacking-sound.wav", 5, 0, -10, 0, 90, 0);
+    mtx_objects.lock();
+    for (auto &o : objects) {
+        scene->addObject(
+            std::get<1>(o).id,
+            std::get<1>(o).type,
+            std::get<1>(o).sound,
+            std::get<1>(o).pos_x,
+            std::get<1>(o).pos_y,
+            std::get<1>(o).pos_z,
+            std::get<1>(o).dir_x,
+            std::get<1>(o).dir_y,
+            std::get<1>(o).dir_z
+        );
+    }
+    mtx_objects.unlock();
 
     // enregistrement des fonctions callbacks
     glfwSetFramebufferSizeCallback(window, onSurfaceChanged);
@@ -178,7 +230,25 @@ int main(int argc,char **argv) {
         onDrawRequest(window);
         // attendre les événements
         glfwPollEvents();
-    } while (glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS && !glfwWindowShouldClose(window));
+    } while (
+        glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS &&
+        !glfwWindowShouldClose(window) &&
+        exit_signal.wait_for(std::chrono::nanoseconds(1)) == std::future_status::timeout &&
+        current_status == Status::IN_PROGRESS
+    );
+}
+
+/** point d'entrée du programme **/
+int main(int argc,char **argv) {
+    // Client enter his/her name
+    std::cout << "Enter your USERNAME: ";
+    std::cin >> username;
+
+    // TODO
+
+    // interface_dealer = std::thread(deal_with_interface, std::move(interface_dealer_exit_signal.get_future()));
+
+    // TODO
 
     return EXIT_SUCCESS;
 }
