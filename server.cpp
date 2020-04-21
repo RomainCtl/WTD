@@ -13,6 +13,8 @@
 #include <future>
 
 #define N_CHAR 1024UL
+// To delimite each socket msgs
+const std::string MSG_DELIMITER = "$";
 
 // Player structure definition
 struct Player {
@@ -121,6 +123,7 @@ void end(Player *winner) {
     // Announce
     std::string msg = "WIN=";
     msg += std::to_string(winner->id);
+    msg += MSG_DELIMITER;
 
     // Server
     std::cout << msg << std::endl;
@@ -300,6 +303,7 @@ void deal_with_game(std::future<void> exit_signal) {
             for(auto &i : client_to_remove) {
                 std::string msg = "PLAYERLEFT=";
                 msg += std::to_string(i);
+                msg += MSG_DELIMITER;
                 for (auto &c : clients) {
                     send((int) std::get<1>(c.second).id, msg.c_str(), msg.length(), 0);
                 }
@@ -320,6 +324,7 @@ void deal_with_game(std::future<void> exit_signal) {
         // Send start msg to all players
         if (current_status == STARTING) {
             std::string msg = "START";
+            msg += MSG_DELIMITER;
             mtx_clients.lock();
             for (auto &i : clients) {
                 send((int) std::get<1>(i.second).id, msg.c_str(), msg.length(), 0);
@@ -342,6 +347,7 @@ void deal_with_game(std::future<void> exit_signal) {
                 msg += std::to_string( std::get<1>(it->second).id ) + ":";
                 msg += std::get<1>(it->second).name + ":";
                 msg += std::to_string( std::get<1>(it->second).nb_objects_found );
+                msg += MSG_DELIMITER;
 
                 std::cout << msg << std::endl;
 
@@ -367,6 +373,7 @@ void deal_with_game(std::future<void> exit_signal) {
                 msg = "PLAYERFIND=";
                 msg += std::to_string( std::get<1>(it->second).id) + ":";
                 msg += std::to_string(i.second);
+                msg += MSG_DELIMITER;
 
                 std::cout << msg << std::endl;
 
@@ -412,6 +419,8 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
     std::regex askstart("ASKSTART");
     std::regex objectfound("FOUND=[0-9]+");
 
+    std::string messages;
+
     //
     while(exit_signal.wait_for(std::chrono::nanoseconds(1)) == std::future_status::timeout) {
         valread = read(socket , buffer, N_CHAR); // PASSIVE WAIT
@@ -423,118 +432,131 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
         }
         if (exit_signal.wait_for(std::chrono::nanoseconds(1)) != std::future_status::timeout) break;
 
-        std::string message(buffer);
+        messages += buffer;
 
-        // match regex
-        if (regex_match(message, username) && !is_registred) {
-            std::cout << "Received username" << std::endl;
+        // Split buffer in real messages
+        size_t pos = 0;
+        std::string current_msg;
+        while ( (pos = messages.find(MSG_DELIMITER)) != std::string::npos ) {
+            current_msg = messages.substr(0, pos);
+            messages.erase(0, pos + MSG_DELIMITER.length());
 
-            mtx_clients.lock();
-            std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it = clients.find(id);
-
-            // overwrite
-            std::get<1>(it->second).name = message.substr(9); // 9 is size of "USERNAME="
-
-            mtx_clients.unlock();
-
-            is_registred = true;
-
-            /* Send data */
-            std::string msg = std::to_string(id);
-
-            // Send client id
-            send(socket, msg.c_str(), msg.length(), 0);
-
-            // Send every objects
-            for (unsigned int i = 0 ; i < objs.size() ; i++) {
-                mtx_config.lock();
-                msg = "OBJECT=";
-                msg += std::to_string( id ) + ":";
-                msg += objs[i]["type"].asString() + ":";
-                msg += objs[i]["sound"].asString() + ":";
-                msg += objs[i]["position"]["x"].asString() + ":";
-                msg += objs[i]["position"]["y"].asString() + ":";
-                msg += objs[i]["position"]["z"].asString() +":";
-                msg += objs[i]["direction"]["x"].asString() + ":";
-                msg += objs[i]["direction"]["y"].asString() + ":";
-                msg += objs[i]["direction"]["z"].asString();
-                mtx_config.unlock();
-
-                send(socket, msg.c_str(), msg.length(), 0);
-            }
-
-            // Send player list
-            mtx_clients.lock();
-            for (std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>>>::iterator it=clients.begin() ; it != clients.end() ; ++it) {
-                msg = "PLAYER=";
-                msg += std::to_string( std::get<1>(it->second).id) + ":";
-                msg += std::get<1>(it->second).name + ":";
-                msg += std::to_string( std::get<1>(it->second).nb_objects_found );
-                mtx_clients.unlock();
-
-                send(socket, msg.c_str(), msg.length(), 0);
-                mtx_clients.lock();
-            }
-
-            new_player_has_join.push_back(id); // add to queue
-            mtx_clients.unlock();
-        }
-        else if (regex_match(message, position) && is_registred && current_status == IN_PROGRESS) {
-            std::string _pos = message.substr(9);
-            std::tuple<int, int, int> coor;
-            int x, y, z;
-            size_t p = 0;
-
-            // X
-            p = _pos.find(":");
-            x = stoi( _pos.substr(0, p) );
-            _pos.erase(0, p+1); // 1 for sizeof ":"
-            // Y
-            p = _pos.find(":");
-            y = stoi( _pos.substr(0, p) );
-            _pos.erase(0, p+1); // 1 for sizeof ":"
-            // Z
-            z = stoi(_pos);
-
-            coor = std::make_tuple(x, y, z);
-            // TODO do something with coor
-            std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
-        }
-        else if (regex_match(message, askstart) && is_registred && current_status == WAITING) {
-            if ((int) id == leader) {
-                std::cout << "Leader asks to start" << std::endl;
-                mtx_status.lock();
-                current_status = STARTING;
-                mtx_status.unlock();
-            } else {
-                std::string msg = "Vous n'êtes pas le leader, vous ne pouvez pas lancer la partie.";
-                send(socket, msg.c_str(), msg.length(), 0);
-            }
-        }
-        else if (regex_match(message, objectfound) && is_registred && current_status == IN_PROGRESS) {
-            unsigned int object_id = stoi(message.substr(6));
-
-            // check object exist
-            mtx_config.lock();
-            if (objs[object_id].isObject()) {
-                mtx_config.unlock();
+            // match regex
+            if (regex_match(current_msg, username) && !is_registred) {
+                std::cout << "Received username" << std::endl;
 
                 mtx_clients.lock();
                 std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it = clients.find(id);
-                // overwrite
-                std::get<1>(it->second).nb_objects_found++;
 
-                player_find_object.push_back( std::make_pair(id, object_id)); // add to queue
+                // overwrite
+                std::get<1>(it->second).name = current_msg.substr(9); // 9 is size of "USERNAME="
+
                 mtx_clients.unlock();
-            } else {
-                mtx_config.unlock();
+
+                is_registred = true;
+
+                /* Send data */
+                std::string msg = "ID=" + std::to_string(id);
+                msg += MSG_DELIMITER;
+
+                // Send client id
+                send(socket, msg.c_str(), msg.length(), 0);
+
+                // Send every objects
+                for (unsigned int i = 0 ; i < objs.size() ; i++) {
+                    mtx_config.lock();
+                    msg = "OBJECT=";
+                    msg += std::to_string( id ) + ":";
+                    msg += objs[i]["type"].asString() + ":";
+                    msg += objs[i]["sound"].asString() + ":";
+                    msg += objs[i]["position"]["x"].asString() + ":";
+                    msg += objs[i]["position"]["y"].asString() + ":";
+                    msg += objs[i]["position"]["z"].asString() +":";
+                    msg += objs[i]["direction"]["x"].asString() + ":";
+                    msg += objs[i]["direction"]["y"].asString() + ":";
+                    msg += objs[i]["direction"]["z"].asString();
+                    mtx_config.unlock();
+                    msg += MSG_DELIMITER;
+
+                    send(socket, msg.c_str(), msg.length(), 0);
+                }
+
+                // Send player list
+                mtx_clients.lock();
+                for (std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>>>::iterator it=clients.begin() ; it != clients.end() ; ++it) {
+                    msg = "PLAYER=";
+                    msg += std::to_string( std::get<1>(it->second).id) + ":";
+                    msg += std::get<1>(it->second).name + ":";
+                    msg += std::to_string( std::get<1>(it->second).nb_objects_found );
+                    mtx_clients.unlock();
+                    msg += MSG_DELIMITER;
+
+                    send(socket, msg.c_str(), msg.length(), 0);
+                    mtx_clients.lock();
+                }
+
+                new_player_has_join.push_back(id); // add to queue
+                mtx_clients.unlock();
             }
-        }
-        else {
-            // default
-            std::cout << "Client (id: " << id << ") sent an unknown message" << std::endl;
-            std::string msg = "Commande inconnu...";
-            send(socket, msg.c_str(), msg.length(), 0);
+            else if (regex_match(current_msg, position) && is_registred && current_status == IN_PROGRESS) {
+                std::string _pos = current_msg.substr(9);
+                std::tuple<int, int, int> coor;
+                int x, y, z;
+                size_t p = 0;
+
+                // X
+                p = _pos.find(":");
+                x = stoi( _pos.substr(0, p) );
+                _pos.erase(0, p+1); // 1 for sizeof ":"
+                // Y
+                p = _pos.find(":");
+                y = stoi( _pos.substr(0, p) );
+                _pos.erase(0, p+1); // 1 for sizeof ":"
+                // Z
+                z = stoi(_pos);
+
+                coor = std::make_tuple(x, y, z);
+                // TODO do something with coor
+                std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
+            }
+            else if (regex_match(current_msg, askstart) && is_registred && current_status == WAITING) {
+                if ((int) id == leader) {
+                    std::cout << "Leader asks to start" << std::endl;
+                    mtx_status.lock();
+                    current_status = STARTING;
+                    mtx_status.unlock();
+                } else {
+                    std::string msg = "Vous n'êtes pas le leader, vous ne pouvez pas lancer la partie.";
+                    msg += MSG_DELIMITER;
+                    send(socket, msg.c_str(), msg.length(), 0);
+                }
+            }
+            else if (regex_match(current_msg, objectfound) && is_registred && current_status == IN_PROGRESS) {
+                unsigned int object_id = stoi(current_msg.substr(6));
+
+                // check object exist
+                mtx_config.lock();
+                if (objs[object_id].isObject()) {
+                    mtx_config.unlock();
+
+                    mtx_clients.lock();
+                    std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it = clients.find(id);
+                    // overwrite
+                    std::get<1>(it->second).nb_objects_found++;
+
+                    player_find_object.push_back( std::make_pair(id, object_id)); // add to queue
+                    mtx_clients.unlock();
+                } else {
+                    mtx_config.unlock();
+                }
+            }
+            else {
+                // default
+                std::cout << "Client (id: " << id << ") sent an unknown message" << std::endl;
+                std::string msg = "Commande inconnu...";
+                msg += MSG_DELIMITER;
+                send(socket, msg.c_str(), msg.length(), 0);
+            }
         }
 
     }
