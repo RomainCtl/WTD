@@ -104,8 +104,12 @@ void error_callback(int error, const char* description)
 
 
 /** point d'entrée du programme **/
-int main(int argc,char **argv)
-{
+int main(int argc,char **argv) {
+    // Client enter his/her name
+    std::string username;
+    std::cout << "Enter your USERNAME: ";
+    std::cin >> username;
+
     // initialisation de GLFW
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
