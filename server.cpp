@@ -500,11 +500,16 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
             // TODO do something with coor
             std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
         }
-        else if (regex_match(message, askstart) && is_registred && (int) id == leader && current_status == WAITING) {
-            std::cout << "Leader asks to start" << std::endl;
-            mtx_status.lock();
-            current_status = STARTING;
-            mtx_status.unlock();
+        else if (regex_match(message, askstart) && is_registred && current_status == WAITING) {
+            if ((int) id == leader) {
+                std::cout << "Leader asks to start" << std::endl;
+                mtx_status.lock();
+                current_status = STARTING;
+                mtx_status.unlock();
+            } else {
+                std::string msg = "Vous n'êtes pas le leader, vous ne pouvez pas lancer la partie.";
+                send(socket, msg.c_str(), msg.length(), 0);
+            }
         }
         else if (regex_match(message, objectfound) && is_registred && current_status == IN_PROGRESS) {
             unsigned int object_id = stoi(message.substr(6));
@@ -528,6 +533,8 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
         else {
             // default
             std::cout << "Client (id: " << id << ") sent an unknown message" << std::endl;
+            std::string msg = "Commande inconnu...";
+            send(socket, msg.c_str(), msg.length(), 0);
         }
 
     }
