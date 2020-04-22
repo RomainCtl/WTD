@@ -19,38 +19,8 @@
 #include <cstdlib>
 
 #include <utils.h>
+#include "commons.h"
 #include "Scene.h"
-
-#define N_CHAR 1024UL
-// To delimite each socket msgs
-const std::string MSG_DELIMITER = "$";
-
-// Player structure definition
-struct Player {
-    unsigned int id;
-    std::string name;
-    unsigned int nb_objects_found;
-};
-
-// ObjectDef structure definition
-struct ObjectDef {
-    unsigned int id;
-    ObjectType type;
-    std::string sound;
-    double pos_x;
-    double pos_y;
-    double pos_z;
-    double dir_x;
-    double dir_y;
-    double dir_z;
-};
-
-// Game status
-enum Status {
-    WAITING,
-    IN_PROGRESS,
-    COMPLETED
-};
 
 /** Global variable */
 std::string username;
@@ -67,7 +37,7 @@ std::promise<void> interface_dealer_exit_signal;
 
 std::mutex mtx_status;
 Status current_status = Status::WAITING;
-int client_socket = 0;
+int client_socket = 0; // it is global var
 
 /**
  * Scène à dessiner
@@ -247,6 +217,19 @@ void deal_with_interface(std::future<void> exit_signal) {
         exit_signal.wait_for(std::chrono::nanoseconds(1)) == std::future_status::timeout &&
         current_status == Status::IN_PROGRESS
     );
+
+    onExit(); // normal exit
+}
+
+/**
+ * Shutdown client
+*/
+void stop() {
+    // stop interface thread if exist
+    try {
+        interface_dealer_exit_signal.set_value();
+        interface_dealer.detach();
+    } catch (std::exception const& e) {}
 }
 
 /**
@@ -256,8 +239,7 @@ void deal_with_interface(std::future<void> exit_signal) {
  */
 void exit_handler(int s) {
     std::cout << "Caught signal " << s << std::endl;
-    interface_dealer_exit_signal.set_value();
-    interface_dealer.detach();
+    stop();
     exit(EXIT_SUCCESS);
 }
 
@@ -357,7 +339,9 @@ int main(int argc, char *argv[]) {
                 if (str_type == "duck")
                     type = ObjectType::DUCK;
                 else {
-                    // EXIT
+                    std::cerr << "Unknown object !, exit..." << std::endl;
+                    stop();
+                    return EXIT_FAILURE;
                 }
                 _o.erase(0, _o.find(":") + 1);
                 sound = _o.substr(0, _o.find(":") );
@@ -398,6 +382,10 @@ int main(int argc, char *argv[]) {
                 mtx_players.lock();
                 players[playerid] = {playerid, name, nb_object_found};
                 mtx_players.unlock();
+
+                // FIXME delete me
+                std::string msg = "ASKSTART"+MSG_DELIMITER;
+                send(client_socket, msg.c_str(), msg.length(), 0);
             }
             else if (regex_match(current_msg, playerleft) && userid != -1) {
                 std::string _pid = current_msg.substr(11);
@@ -473,10 +461,6 @@ int main(int argc, char *argv[]) {
         }
     } while (valread != 0 && current_status != Status::COMPLETED);
 
-    // stop interface thread if exist
-    try {
-        interface_dealer_exit_signal.set_value();
-        interface_dealer.detach();
-    } catch (std::exception const& e) {}
+    stop();
     return EXIT_SUCCESS;
 }

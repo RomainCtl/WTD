@@ -30,7 +30,6 @@ struct ObjectDef {
     double dir_x;
     double dir_y;
     double dir_z;
-    bool is_found;
 };
 
 // Game status
