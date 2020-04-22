@@ -24,7 +24,7 @@ using namespace mesh;
  * constructeur, crée le maillage
  *
  * @param type object type
- * @param soudn path to sound file
+ * @param sound path to sound file
  */
 Object::Object(ObjectType type, std::string sound): Mesh("Object") {
     // matériaux

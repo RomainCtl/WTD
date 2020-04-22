@@ -7,11 +7,7 @@
 #include <Light.h>
 #include <MaterialTexture.h>
 #include <gl-matrix.h>
-
-// List of object type
-enum ObjectType {
-    DUCK
-};
+#include "commons.h"
 
 class Object: public Mesh
 {
