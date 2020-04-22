@@ -9,6 +9,7 @@
 
 #include "Object.h"
 #include "Ground.h"
+#include "commons.h"
 
 
 
@@ -17,7 +18,7 @@ class Scene
 private:
 
     // objets de la scène
-    std::map<unsigned int, Object*> m_Objects;
+    std::map<unsigned int, std::pair<Object*, bool> > m_Objects;
     Ground* m_Ground;
 
     // lampes
@@ -39,6 +40,8 @@ private:
     bool m_Clicked;
     double m_MousePrecX;
     double m_MousePrecY;
+
+    vec3 m_lastPlayerPosition;
 
 
 public:

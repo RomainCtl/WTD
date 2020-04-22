@@ -40,13 +40,17 @@ Scene::Scene() {
     // gestion vue et souris
     m_Azimut    = 20.0;
     m_Elevation = 20.0;
-    m_Distance  = 10.0;
+    // distance of 0 -> First-Person perspective
+    // distance of 5 (example) -> Third-Person perspective (but we do not implement player obj, so we do not see him, it is just strange)
+    m_Distance  = 0.0;
     m_Center    = vec3::create();
     m_Clicked   = false;
 
     // init mouse position
     m_MousePrecX = 0.0;
     m_MousePrecY = 0.0;
+
+    m_lastPlayerPosition = vec3::fromValues(0, 0, 0);
 }
 
 
@@ -172,20 +176,45 @@ void Scene::onDrawFrame()
     // centre des rotations
     mat4::translate(m_MatV, m_MatV, m_Center);
 
-
-    mat4 tmp_v;
-    vec4 pos;
+    vec3 player_pos, object_pos;
+    vec3::multiply(player_pos, m_Center, vec3::fromValues(-1, -1, -1));
+    double distance;
 
     for (auto &object : m_Objects) {
-        mat4::translate(tmp_v, m_MatV, std::get<1>(object)->getPosition());
-        vec4::transformMat4(pos, vec4::fromValues(0,0,0,1), tmp_v);
-        if (vec4::length(pos) < 5) {
-            std::cout<<"Objet " << std::to_string(std::get<0>(object)) << " trouvé !" <<std::endl;
-            std::get<1>(object)->setDraw(true);
-            std::get<1>(object)->setSound(false);
+        object_pos = std::get<1>(object).first->getPosition();
+        distance = std::sqrt(
+            std::pow(object_pos[0] - player_pos[0], 2.0) +
+            std::pow(object_pos[1] - player_pos[1], 2.0) +
+            std::pow(object_pos[2] - player_pos[2], 2.0)
+        );
+        if (distance < 5) {
+            if (!std::get<1>(object).second) {
+                std::get<1>(object).first->setDraw(true);
+                std::get<1>(object).first->setSound(false);
 
-            // TODO send msg to server
+                // send msg to server
+                std::string msg = "FOUND=";
+                msg += std::to_string( std::get<0>(object) );
+                msg += MSG_DELIMITER;
+                send(client_socket, msg.c_str(), msg.length(), 0);
+                std::get<1>(object).second = true;
+
+                std::cout << msg << std::endl; // FIXME AAaarrggg pourquoi ca ne marche pas avec le 2 (l'envoi du msg en socket !!!!???) (aors que pour le 1 ca marche, et que le msg est exactement pareil (sauf 2 à la place de 1))
+            }
         }
+    }
+
+    if (!vec3::equals(player_pos, m_lastPlayerPosition)) {
+        // Send position to server
+        std::string msg = "POSITION=";
+        msg += std::to_string( player_pos[0] ) + ":"; // x
+        msg += std::to_string( player_pos[1] ) + ":"; // y
+        msg += std::to_string( player_pos[2] );       // z
+        msg += MSG_DELIMITER;
+        std::cout << msg << std::endl; // TODO remove me
+        send(client_socket, msg.c_str(), msg.length(), 0);
+
+        m_lastPlayerPosition = player_pos;
     }
 
     /** gestion des lampes **/
@@ -196,7 +225,7 @@ void Scene::onDrawFrame()
     // fournir position et direction en coordonnées caméra aux objets éclairés
     m_Ground->setLight(m_Light);
     for (auto &object : m_Objects) {
-        std::get<1>(object)->setLight(m_Light);
+        std::get<1>(object).first->setLight(m_Light);
     }
 
 
@@ -210,7 +239,7 @@ void Scene::onDrawFrame()
 
     // dessiner le canard en mouvement
     for (auto &object : m_Objects) {
-        std::get<1>(object)->onRender(m_MatP, m_MatV);
+        std::get<1>(object).first->onRender(m_MatP, m_MatV);
     }
 
 }
@@ -219,7 +248,7 @@ void Scene::onDrawFrame()
 /** supprime tous les objets de cette scène */
 Scene::~Scene() {
     for (auto &object : m_Objects) {
-        delete std::get<1>(object);
+        delete std::get<1>(object).first;
     }
     m_Objects.clear();
     delete m_Ground;
@@ -242,7 +271,7 @@ void Scene::addObject(unsigned int id, ObjectType type, std::string sound, doubl
     Object *tmp = new Object(type, sound);
     tmp->setPosition(vec3::fromValues(pos_x, pos_y, pos_z));
     tmp->setOrientation(vec3::fromValues(dir_x, Utils::radians(dir_y), dir_z));
-    tmp->setDraw(false);
+    tmp->setDraw(true); // FIXME set false
     tmp->setSound(true);
-    m_Objects[id] = tmp;
+    m_Objects[id] = std::make_pair(tmp, false);
 }
