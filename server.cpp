@@ -413,7 +413,7 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
 
     // define commands regex
     std::regex username("USERNAME=[A-Za-z0-9]+");
-    std::regex position("POSITION=[-0-9]+:[-0-9]+:[-0-9]+");
+    std::regex position("POSITION=(-)?[0-9.]+:(-)?[0-9.]+:(-)?[0-9.]+");
     std::regex askstart("ASKSTART");
     std::regex objectfound("FOUND=[0-9]+");
 
@@ -515,7 +515,7 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
 
                 coor = std::make_tuple(x, y, z);
                 // TODO do something with coor
-                std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
+                // std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
             }
             else if (regex_match(current_msg, askstart) && is_registred && current_status == WAITING) {
                 if ((int) id == leader) {
