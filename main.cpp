@@ -35,6 +35,9 @@ std::map<unsigned int, ObjectDef> objects;
 std::thread interface_dealer;
 std::promise<void> interface_dealer_exit_signal;
 
+std::thread keypress_dealer;
+std::promise<void> keypress_dealer_exit_signal;
+
 std::mutex mtx_status;
 Status current_status = Status::WAITING;
 int client_socket = 0; // it is global var
@@ -222,6 +225,24 @@ void deal_with_interface(std::future<void> exit_signal) {
 }
 
 /**
+ * Thread to manage keypress event (to ask to start game)
+*/
+void deal_with_keyevent(std::future<void> exit_signal) {
+    std::string c;
+    std::cout << "Press 's' to start... (work only if you are the leader of this game)" << std::endl;
+    while (exit_signal.wait_for(std::chrono::nanoseconds(1)) == std::future_status::timeout) {
+        std::cin >> c;
+
+        if (c == "s" || c == "S") {
+            std::cout << "Ask start" << std::endl;
+
+            std::string msg = "ASKSTART" + MSG_DELIMITER;
+            send(client_socket, msg.c_str(), msg.length(), 0);
+        }
+    }
+}
+
+/**
  * Shutdown client
 */
 void stop() {
@@ -229,6 +250,8 @@ void stop() {
     try {
         interface_dealer_exit_signal.set_value();
         interface_dealer.detach();
+        keypress_dealer_exit_signal.set_value();
+        keypress_dealer.detach();
     } catch (std::exception const& e) {}
 }
 
@@ -291,6 +314,8 @@ int main(int argc, char *argv[]) {
     msg += username;
     msg += MSG_DELIMITER;
     send(client_socket, msg.c_str(), msg.length(), 0);
+
+    keypress_dealer = std::thread(deal_with_keyevent, std::move(keypress_dealer_exit_signal.get_future()));
 
     // define commands regex
     std::regex id("ID=[0-9]+");
@@ -382,10 +407,6 @@ int main(int argc, char *argv[]) {
                 mtx_players.lock();
                 players[playerid] = {playerid, name, nb_object_found};
                 mtx_players.unlock();
-
-                // FIXME delete me
-                std::string msg = "ASKSTART"+MSG_DELIMITER;
-                send(client_socket, msg.c_str(), msg.length(), 0);
             }
             else if (regex_match(current_msg, playerleft) && userid != -1) {
                 std::string _pid = current_msg.substr(11);
@@ -410,6 +431,9 @@ int main(int argc, char *argv[]) {
                 interface_dealer = std::thread(deal_with_interface, std::move(interface_dealer_exit_signal.get_future()));
                 signal(SIGTERM, exit_handler);
                 signal(SIGINT, exit_handler);
+
+                keypress_dealer_exit_signal.set_value();
+                keypress_dealer.detach();
             }
             else if (regex_match(current_msg, playerfind) && current_status == Status::IN_PROGRESS && userid != -1) {
                 std::string _pid = current_msg.substr(11);

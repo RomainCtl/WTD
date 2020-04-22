@@ -208,13 +208,13 @@ void Scene::onDrawFrame()
         // Send position to server
         std::string msg = "POSITION=";
         msg += std::to_string( player_pos[0] ) + ":"; // x
-        msg += std::to_string( player_pos[1] ) + ":"; // y
-        msg += std::to_string( player_pos[2] );       // z
+        msg += std::to_string( player_pos[2] ) + ":"; // y
+        msg += std::to_string( player_pos[1] );       // z
         msg += MSG_DELIMITER;
         std::cout << msg << std::endl; // TODO remove me
         send(client_socket, msg.c_str(), msg.length(), 0);
 
-        m_lastPlayerPosition = player_pos;
+        m_lastPlayerPosition = player_pos; // update last position
     }
 
     /** gestion des lampes **/
