@@ -498,24 +498,24 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
             }
             else if (regex_match(current_msg, position) && is_registred && current_status == IN_PROGRESS) {
                 std::string _pos = current_msg.substr(9);
-                std::tuple<int, int, int> coor;
-                int x, y, z;
+                std::tuple<double, double, double> coor;
+                double x, y, z;
                 size_t p = 0;
 
                 // X
                 p = _pos.find(":");
-                x = stoi( _pos.substr(0, p) );
+                x = stod( _pos.substr(0, p) );
                 _pos.erase(0, p+1); // 1 for sizeof ":"
                 // Y
                 p = _pos.find(":");
-                y = stoi( _pos.substr(0, p) );
+                y = stod( _pos.substr(0, p) );
                 _pos.erase(0, p+1); // 1 for sizeof ":"
                 // Z
-                z = stoi(_pos);
+                z = stod(_pos);
 
                 coor = std::make_tuple(x, y, z);
                 // TODO do something with coor
-                // std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
+                std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
             }
             else if (regex_match(current_msg, askstart) && is_registred && current_status == WAITING) {
                 if ((int) id == leader) {
