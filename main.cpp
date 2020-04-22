@@ -249,10 +249,12 @@ void stop() {
     // stop interface thread if exist
     try {
         interface_dealer_exit_signal.set_value();
-        interface_dealer.detach();
         keypress_dealer_exit_signal.set_value();
-        keypress_dealer.detach();
     } catch (std::exception const& e) {}
+    if (interface_dealer.joinable())
+        interface_dealer.join();
+    if (keypress_dealer.joinable())
+        keypress_dealer.join();
 }
 
 /**
