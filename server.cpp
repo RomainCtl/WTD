@@ -515,7 +515,7 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
 
                 coor = std::make_tuple(x, y, z);
                 // TODO do something with coor
-                std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
+                // std::cout << "position " << std::get<0>(coor) << ":" << std::get<1>(coor) << ":" << std::get<2>(coor) << std::endl;
             }
             else if (regex_match(current_msg, askstart) && is_registred && current_status == WAITING) {
                 if ((int) id == leader) {
@@ -531,6 +531,7 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
             }
             else if (regex_match(current_msg, objectfound) && is_registred && current_status == IN_PROGRESS) {
                 unsigned int object_id = stoi(current_msg.substr(6));
+                object_id--; // start at 0 in list !
 
                 // check object exist
                 mtx_config.lock();

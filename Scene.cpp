@@ -198,8 +198,6 @@ void Scene::onDrawFrame()
                 msg += MSG_DELIMITER;
                 send(client_socket, msg.c_str(), msg.length(), 0);
                 std::get<1>(object).second = true;
-
-                std::cout << msg << std::endl; // FIXME AAaarrggg pourquoi ca ne marche pas avec le 2 (l'envoi du msg en socket !!!!???) (aors que pour le 1 ca marche, et que le msg est exactement pareil (sauf 2 à la place de 1))
             }
         }
     }
@@ -211,7 +209,7 @@ void Scene::onDrawFrame()
         msg += std::to_string( player_pos[2] ) + ":"; // y
         msg += std::to_string( player_pos[1] );       // z
         msg += MSG_DELIMITER;
-        std::cout << msg << std::endl; // TODO remove me
+        // std::cout << msg << std::endl; // TODO remove me
         send(client_socket, msg.c_str(), msg.length(), 0);
 
         m_lastPlayerPosition = player_pos; // update last position
@@ -271,7 +269,7 @@ void Scene::addObject(unsigned int id, ObjectType type, std::string sound, doubl
     Object *tmp = new Object(type, sound);
     tmp->setPosition(vec3::fromValues(pos_x, pos_y, pos_z));
     tmp->setOrientation(vec3::fromValues(dir_x, Utils::radians(dir_y), dir_z));
-    tmp->setDraw(true); // FIXME set false
+    tmp->setDraw(false);
     tmp->setSound(true);
     m_Objects[id] = std::make_pair(tmp, false);
 }
