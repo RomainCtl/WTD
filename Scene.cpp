@@ -14,7 +14,7 @@
 
 
 /** constructeur */
-Scene::Scene(bool third_person) {
+Scene::Scene() {
     m_Ground = new Ground();
 
     // caractéristiques de la lampe
@@ -48,14 +48,9 @@ Scene::Scene(bool third_person) {
 
     lego = new Object(_THIRD_PERSON);
     lego->setPosition(vec3::fromValues(0, 0, 0));
-    lego->setOrientation(vec3::fromValues(0, Utils::radians(0), 0));
+    lego->setOrientation(vec3::fromValues(0, 0, 0));
     lego->setDraw(false);
     lego->setSound(false);
-
-    if (third_person) {
-        m_Distance = 5.0;
-        lego->setDraw(true);
-    }
 
     // init mouse position
     m_MousePrecX = 0.0;
@@ -157,6 +152,15 @@ void Scene::onKeyDown(unsigned char code)
         break;
     case GLFW_KEY_Z: // bas
         vec3::transformMat4(offset, vec3::fromValues(0, +0.1, 0), m_MatTMP);
+        break;
+    case GLFW_KEY_P: // Switch between third-person and first-person perspective
+        if (m_Distance == 0) {
+            m_Distance = 5.0;
+            lego->setDraw(true);
+        } else {
+            m_Distance = 0;
+            lego->setDraw(false);
+        }
         break;
     default:
         return;

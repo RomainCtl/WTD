@@ -51,10 +51,8 @@ public:
 
     /**
      * constructeur, crée les objets 3D à dessiner
-     *
-     * @param third_person
      */
-    Scene(bool third_person);
+    Scene();
 
     /** destructeur, libère les ressources */
     ~Scene();

@@ -42,8 +42,6 @@ std::mutex mtx_status;
 Status current_status = Status::WAITING;
 int client_socket = 0; // it is global var
 
-bool third_person_perspective = false;
-
 /**
  * Scène à dessiner
  * NB: son constructeur doit être appelé après avoir initialisé OpenGL
@@ -178,7 +176,7 @@ void deal_with_interface(std::future<void> exit_signal) {
     alListener3f(AL_VELOCITY, 0, 0, 0);
 
     // création de la scène => création des objets...
-    scene = new Scene(third_person_perspective);
+    scene = new Scene();
     //debugGLFatal("new Scene()");
 
     mtx_objects.lock();
@@ -272,21 +270,12 @@ void exit_handler(int s) {
 /** point d'entrée du programme **/
 int main(int argc, char *argv[]) {
     // Get params
-    if (argc < 3 && argc > 4) {
-        std::cerr << "Usage: " << argv[0] << " <server_ip_address> <server_port> [-p]" << std::endl << "\t-p  :  active third-person perspective" << std::endl;
+    if (argc != 3) {
+        std::cerr << "Usage: " << argv[0] << " <server_ip_address> <server_port>" << std::endl;
         return EXIT_FAILURE;
     }
     char* addr = argv[1];
     uint16_t port = (u_int16_t) atoi(argv[2]);
-
-    if (argc == 4) {
-        if (strcmp(argv[3], "-p") == 0)
-            third_person_perspective = true;
-        else {
-            std::cerr << "Usage: " << argv[0] << " <server_ip_address> <server_port> [-p]" << std::endl << "\t-p  :  active third-person perspective" << std::endl;
-            return EXIT_FAILURE;
-        }
-    }
 
     // Client enter his/her name
     std::cout << "Enter your USERNAME: ";

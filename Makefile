@@ -33,10 +33,6 @@ $(EXEC): .o/main.o $(patsubst %,.o/%.o,$(notdir $(MODULES))) $(addsuffix .o,$(MO
 run:	$(EXEC)
 	./$(EXEC) $(SERVER_ADDR) $(SERVER_PORT)
 
-# exécution du programme
-run-p:	$(EXEC)
-	./$(EXEC) $(SERVER_ADDR) $(SERVER_PORT) -p
-
 # compilation d'un module
 .o/%.o: %.cpp $(addsuffix .h,$(MODULES)) | .o
 	$(CXX) $(CXXFLAGS) -c $< -o .o/$(notdir $@)
