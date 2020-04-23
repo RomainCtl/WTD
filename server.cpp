@@ -88,7 +88,7 @@ void exit_handler(int s) {
 void stop_server() {
     connection_dealer_exit_signal.set_value();
     game_dealer_exit_signal.set_value();
-    connection_dealer.join();
+    connection_dealer.detach();
     game_dealer.join();
     close_sockets();
 }
