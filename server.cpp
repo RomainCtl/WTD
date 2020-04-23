@@ -496,7 +496,6 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
                     msg = "OBJECT=";
                     msg += std::to_string( i+1 ) + ":";
                     msg += objs[i]["type"].asString() + ":";
-                    msg += objs[i]["sound"].asString() + ":";
                     msg += objs[i]["position"]["x"].asString() + ":";
                     msg += objs[i]["position"]["y"].asString() + ":";
                     msg += objs[i]["position"]["z"].asString() +":";

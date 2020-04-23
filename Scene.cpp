@@ -257,7 +257,6 @@ Scene::~Scene() {
  *
  * @param id object unique id
  * @param type object type
- * @param sound path to sound file
  * @param pos_x X position coordinate
  * @param pos_y Y position coordinate
  * @param pos_z Z position coordinate
@@ -265,11 +264,11 @@ Scene::~Scene() {
  * @param dir_y Y direction coordinate
  * @param dir_z Z direction coordinate
  */
-void Scene::addObject(unsigned int id, ObjectType type, std::string sound, double pos_x, double pos_y, double pos_z, double dir_x, double dir_y, double dir_z) {
-    Object *tmp = new Object(type, sound);
+void Scene::addObject(unsigned int id, ObjectType type, double pos_x, double pos_y, double pos_z, double dir_x, double dir_y, double dir_z) {
+    Object *tmp = new Object(type);
     tmp->setPosition(vec3::fromValues(pos_x, pos_y, pos_z));
     tmp->setOrientation(vec3::fromValues(dir_x, Utils::radians(dir_y), dir_z));
-    tmp->setDraw(false);
+    tmp->setDraw(true); // FIXME set false
     tmp->setSound(true);
     m_Objects[id] = std::make_pair(tmp, false);
 }
