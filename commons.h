@@ -7,7 +7,12 @@
 
 // List of object type
 enum ObjectType {
-    DUCK
+    DUCK,
+    CAT,
+    HORSE,
+    LION,
+    PENGUIN,
+    MONKEY
 };
 
 #define N_CHAR 1024UL
