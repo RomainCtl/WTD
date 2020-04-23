@@ -24,9 +24,9 @@ using namespace mesh;
  * constructeur, crée le maillage
  *
  * @param type object type
- * @param soudn path to sound file
+ * @param sound path to sound file
  */
-Object::Object(ObjectType type, char* sound): Mesh("Object") {
+Object::Object(ObjectType type, std::string sound): Mesh("Object") {
     // matériaux
     if (type == ObjectType::DUCK) {
         m_Material = new MaterialTexture("data/10602_Rubber_Duck_v1_diffuse.jpg");

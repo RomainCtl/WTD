@@ -7,11 +7,7 @@
 #include <Light.h>
 #include <MaterialTexture.h>
 #include <gl-matrix.h>
-
-// List of object type
-enum ObjectType {
-    DUCK
-};
+#include "commons.h"
 
 class Object: public Mesh
 {
@@ -40,7 +36,7 @@ public:
      * @param type object type
      * @param soudn path to sound file
      */
-    Object(ObjectType type, char* sound);
+    Object(ObjectType type, std::string sound);
 
     /** destructeur, libère le maillage et l'audio */
     ~Object();

@@ -6,6 +6,7 @@ EXEC = main
 
 # Server conf
 SERVER_CONFIG_FILE = server_config.json
+SERVER_ADDR = 127.0.0.1
 SERVER_PORT = 8080
 
 # liste des modules utilisateur : tous les .cpp (privés de cette extension) du dossier courant
@@ -19,7 +20,7 @@ MODULES_INCS = $(sort $(dir $(wildcard libs/*/*.h)))
 
 # options de compilation et librairies
 CXXFLAGS = -std=c++11 -I. -Ilibs $(addprefix -I,$(MODULES_INCS)) -I/usr/include/SDL2 -g # -O3
-LIBS = -lGLEW -lGL -lGLU -lglfw -lSDL2 -lSDL2_image -lopenal -lalut
+LIBS = -lGLEW -lGL -lGLU -lglfw -lSDL2 -lSDL2_image -lopenal -lalut -lpthread
 
 
 #### Ne pas modifier au delà (sauf si vous savez ce que vous faites)
@@ -30,7 +31,7 @@ $(EXEC): .o/main.o $(patsubst %,.o/%.o,$(notdir $(MODULES))) $(addsuffix .o,$(MO
 
 # exécution du programme
 run:	$(EXEC)
-	./$(EXEC)
+	./$(EXEC) $(SERVER_ADDR) $(SERVER_PORT)
 
 # compilation d'un module
 .o/%.o: %.cpp $(addsuffix .h,$(MODULES)) | .o
