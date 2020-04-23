@@ -43,6 +43,10 @@ std::map<ObjectType, ObjectConfigType> objects_config = {
     {
         MONKEY,
         {"monkey2.wav", "12958_Spider_Monkey_v1_l2.obj", "12958_Spider_Monkey_diff.jpg", 20.0f, 0.0f, 65.0f, 20.0f, 0.015, -90, 0, 0}
+    },
+    {
+        _THIRD_PERSON,
+        {"white_noise.wav", "LegoMan.obj", "lego_diffuse.png", 0, 0, 0, 0, 0.2, 0, 180, 0}
     }
 };
 
@@ -52,7 +56,6 @@ std::map<ObjectType, ObjectConfigType> objects_config = {
  * constructeur, crée le maillage
  *
  * @param type object type
- * @param sound path to sound file
  */
 Object::Object(ObjectType type): Mesh("Object") {
     std::map<ObjectType, ObjectConfigType>::iterator it = objects_config.find(type);

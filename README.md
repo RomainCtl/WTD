@@ -16,6 +16,8 @@ DEBIAN : `sudo apt install g++ mesa-utils libglew-dev libglfw3-dev libsdl2-dev l
 * Build : `make main`
 * Run : `make run`
 
+> __Tips__ : Type 'p' to switch between *first-person* and *third-person* perpective !
+
 ### Server
 
 * Build : `make build-serv`

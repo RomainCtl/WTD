@@ -13,7 +13,8 @@ enum ObjectType {
     HORSE,
     LION,
     PENGUIN,
-    MONKEY
+    MONKEY,
+    _THIRD_PERSON
 };
 
 struct ObjectConfigType {

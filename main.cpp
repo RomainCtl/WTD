@@ -271,7 +271,7 @@ void exit_handler(int s) {
 int main(int argc, char *argv[]) {
     // Get params
     if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << "<server_ip_address> <server_port>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <server_ip_address> <server_port>" << std::endl;
         return EXIT_FAILURE;
     }
     char* addr = argv[1];
