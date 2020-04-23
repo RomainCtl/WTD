@@ -184,7 +184,6 @@ void deal_with_interface(std::future<void> exit_signal) {
         scene->addObject(
             std::get<1>(o).id,
             std::get<1>(o).type,
-            std::get<1>(o).sound,
             std::get<1>(o).pos_x,
             std::get<1>(o).pos_y,
             std::get<1>(o).pos_z,
@@ -322,7 +321,7 @@ int main(int argc, char *argv[]) {
     // define commands regex
     std::regex id("ID=[0-9]+");
     std::regex player("PLAYER=[0-9]+:[A-Za-z0-9]+:[0-9]+");
-    std::regex object("OBJECT=[0-9]+:[a-z]+:[A-Za-z0-9/._-]+:[0-9-.]+:[0-9-.]+:[0-9-.]+:[0-9-.]+:[0-9-.]+:[0-9-.]+");
+    std::regex object("OBJECT=[0-9]+:[a-z]+:[0-9-.]+:[0-9-.]+:[0-9-.]+:[0-9-.]+:[0-9-.]+:[0-9-.]+");
     std::regex playerleft("PLAYERLEFT=[0-9]+");
     std::regex start("START");
     std::regex playerfind("PLAYERFIND=[0-9]+:[0-9]+");
@@ -354,7 +353,7 @@ int main(int argc, char *argv[]) {
                 std::string _o = current_msg.substr(7);
                 unsigned int objectid;
                 double pos_x, pos_y, pos_z, dir_x, dir_y, dir_z;
-                std::string str_type, sound;
+                std::string str_type;
                 ObjectType type;
 
                 std::cout << "New object: " << _o << std::endl;
@@ -365,13 +364,21 @@ int main(int argc, char *argv[]) {
                 str_type = _o.substr(0, _o.find(":") );
                 if (str_type == "duck")
                     type = ObjectType::DUCK;
+                else if (str_type == "cat")
+                    type = ObjectType::CAT;
+                else if (str_type == "horse")
+                    type = ObjectType::HORSE;
+                else if (str_type == "lion")
+                    type = ObjectType::LION;
+                else if (str_type == "penguin")
+                    type = ObjectType::PENGUIN;
+                else if (str_type == "monkey")
+                    type = ObjectType::MONKEY;
                 else {
                     std::cerr << "Unknown object !, exit..." << std::endl;
                     stop();
                     return EXIT_FAILURE;
                 }
-                _o.erase(0, _o.find(":") + 1);
-                sound = _o.substr(0, _o.find(":") );
 
                 // position
                 _o.erase(0, _o.find(":") + 1);
@@ -390,7 +397,7 @@ int main(int argc, char *argv[]) {
                 dir_z = stod( _o.substr(0, _o.find(":") ) );
 
                 mtx_objects.lock();
-                objects[objectid] = {objectid, type, sound, pos_x, pos_y, pos_z, dir_x, dir_y, dir_z};
+                objects[objectid] = {objectid, type, pos_x, pos_y, pos_z, dir_x, dir_y, dir_z};
                 mtx_objects.unlock();
             }
             else if (regex_match(current_msg, player) && current_status == Status::WAITING && userid != -1) {
