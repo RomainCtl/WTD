@@ -88,8 +88,8 @@ void exit_handler(int s) {
 void stop_server() {
     connection_dealer_exit_signal.set_value();
     game_dealer_exit_signal.set_value();
-    connection_dealer.detach();
-    game_dealer.detach();
+    connection_dealer.join();
+    game_dealer.join();
     close_sockets();
 }
 
@@ -103,7 +103,7 @@ void close_sockets() {
         close(std::get<1>(i.second).id); // stop socket (from id)
     }
     for (auto &i : clients) {
-        std::get<0>(i.second).detach(); // stop thread
+        std::get<0>(i.second).join(); // stop thread
     }
     clients.clear(); // clear player list
     client_to_remove.clear();
@@ -136,6 +136,10 @@ void end(Player *winner) {
     mtx_clients.unlock();
 
     close_sockets();
+
+    mtx_leader.lock();
+    leader = -1;
+    mtx_leader.unlock();
 
     mtx_status.lock();
     current_status = WAITING;
@@ -250,7 +254,7 @@ void deal_with_socket(uint16_t port, std::future<void> exit_signal) {
             exit(EXIT_FAILURE);
         }
 
-        if (clients.size() < max_player && current_status == WAITING) {
+        if (clients.size() < max_player && current_status == Status::WAITING) {
             next_id = (unsigned int) new_socket;
             mtx_clients.lock();
             if (clients.empty()) {
@@ -296,7 +300,7 @@ void deal_with_game(std::future<void> exit_signal) {
             for(auto &i : client_to_remove) {
                 std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it = clients.find(i);
                 std::get<2>(it->second).set_value();
-                std::get<0>(it->second).detach(); // stop thread
+                std::get<0>(it->second).join(); // stop thread
                 clients.erase( it );
             }
             // Tell to other player
@@ -316,8 +320,28 @@ void deal_with_game(std::future<void> exit_signal) {
                 mtx_status.lock();
                 current_status = WAITING;
                 mtx_status.unlock();
+
+                // Reset leader
+                mtx_leader.lock();
+                leader = -1;
+                mtx_leader.unlock();
+
+                std::cout << "All player have left !" << std::endl;
             } else {
-                mtx_clients.unlock();
+                std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>> >::iterator it_leader = clients.find(leader);
+
+                if (it_leader != clients.end()) {
+                    mtx_clients.unlock();
+                } else {
+                    unsigned int _id = std::get<1>(clients.begin()->second).id;
+                    mtx_clients.unlock();
+
+                    mtx_leader.lock();
+                    leader = (int) _id; // the first one
+                    mtx_leader.unlock();
+
+                    std::cout << "New leader : "<<leader<<std::endl;
+                }
             }
         }
 
@@ -360,35 +384,41 @@ void deal_with_game(std::future<void> exit_signal) {
 
         // Send player find object msg to all players
         if (player_find_object.size() > 0) {
-            mtx_config.lock();
-            int nb_object = config["objects"].size();
-            mtx_config.unlock();
+            if (current_status == Status::IN_PROGRESS) {
+                mtx_config.lock();
+                int nb_object = config["objects"].size();
+                mtx_config.unlock();
 
-            std::string msg;
-            mtx_clients.lock();
-            for (auto &i : player_find_object) {
-                std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void> > >::iterator it = clients.find(i.first);
-                msg = "PLAYERFIND=";
-                msg += std::to_string( std::get<1>(it->second).id) + ":";
-                msg += std::to_string(i.second);
-                msg += MSG_DELIMITER;
+                std::string msg;
+                mtx_clients.lock();
+                for (auto &i : player_find_object) {
+                    std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void> > >::iterator it = clients.find(i.first);
+                    msg = "PLAYERFIND=";
+                    msg += std::to_string( std::get<1>(it->second).id) + ":";
+                    msg += std::to_string(i.second);
+                    msg += MSG_DELIMITER;
 
-                std::cout << msg << std::endl;
+                    std::cout << msg << std::endl;
 
-                for (auto &i : clients) {
-                    send((int) std::get<1>(i.second).id, msg.c_str(), msg.length(), 0);
+                    for (auto &i : clients) {
+                        send((int) std::get<1>(i.second).id, msg.c_str(), msg.length(), 0);
+                    }
+
+                    // check if he win
+                    if ((int) std::get<1>(it->second).nb_objects_found == nb_object) {
+                        mtx_clients.unlock();
+                        end(&(std::get<1>(it->second)));
+                        mtx_clients.lock();
+                        break; // Stop loop (to prevent multi-win)
+                    }
                 }
-
-                // check if he win
-                if ((int) std::get<1>(it->second).nb_objects_found == nb_object) {
-                    mtx_clients.unlock();
-                    end(&(std::get<1>(it->second)));
-                    mtx_clients.lock();
-                    break; // Stop loop (to prevent multi-win)
-                }
+                player_find_object.clear();
+                mtx_clients.unlock();
+            } else {
+                mtx_clients.lock();
+                player_find_object.clear();
+                mtx_clients.unlock();
             }
-            player_find_object.clear();
-            mtx_clients.unlock();
         }
     }
 }
@@ -562,32 +592,7 @@ void deal_with_client(int socket, unsigned int id, std::future<void> exit_signal
 
     std::cout << "Connection ended with "<< id <<std::endl;
 
-    // if it was the leader
-    if ((int) id == leader) {
-        if (clients.size() > 1) {
-            mtx_leader.unlock();
-
-            mtx_clients.lock();
-            unsigned int _id = 999;
-            for (std::map<unsigned int, std::tuple<std::thread, Player, std::promise<void>>>::iterator it=clients.begin() ; it != clients.end() ; ++it) {
-                if (_id > std::get<1>(it->second).id && std::get<1>(it->second).id != id) {
-                    _id = std::get<1>(it->second).id;
-                }
-            }
-            mtx_clients.unlock();
-
-            mtx_leader.lock();
-            if (_id == 999) leader = -1;
-            else leader = (int) _id; // the first one
-        } else {
-            mtx_leader.lock();
-            leader = -1;
-        }
-        mtx_leader.unlock();
-        std::cout << "New leader : "<<leader<<std::endl;
-    }
-
-    if (is_an_exist_from_client) {
+    if (is_an_exist_from_client && current_status != Status::COMPLETED) {
         // remove myself
         mtx_clients.lock();
         client_to_remove.push_back(id);
