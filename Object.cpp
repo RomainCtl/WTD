@@ -19,6 +19,34 @@
 
 using namespace mesh;
 
+std::map<ObjectType, ObjectConfigType> objects_config = {
+    {
+        DUCK,
+        {"Duck-quacking-sound.wav", "10602_Rubber_Duck_v1_L3.obj", "10602_Rubber_Duck_v1_diffuse.jpg", 20.0f, 0.0f, 65.0f, 20.0f, 0.1, -90, 0, 0}
+    },
+    {
+        CAT,
+        {"cat_y.wav", "12221_Cat_v1_l3.obj", "Cat_diffuse.jpg", 30.0f, 0.0f, 80.0f, 20.0f, 0.04, -90, 0, 0}
+    },
+    {
+        HORSE,
+        {"horse2.wav", "Horse.obj", "horse_diffuse.jpg", 20.0f, 0.0f, 65.0f, 20.0f, 0.005, 0, 90, 0}
+    },
+    {
+        LION,
+        {"lion_growl.wav", "12273_Lion_v1_l3.obj", "12273_Lion_Diffuse.jpg", 20.0f, 0.0f, 65.0f, 20.0f, 0.01, -90, 0, 0}
+    },
+    {
+        PENGUIN,
+        {"penguin_sounds_6639_loops.wav", "PenguinBaseMesh.obj", "Penguin_Diffuse_Color.png", 20.0f, 0.0f, 65.0f, 20.0f, 1, 0, 0, 0}
+    },
+    {
+        MONKEY,
+        {"monkey2.wav", "12958_Spider_Monkey_v1_l2.obj", "12958_Spider_Monkey_diff.jpg", 20.0f, 0.0f, 65.0f, 20.0f, 0.015, -90, 0, 0}
+    }
+};
+
+
 
 /**
  * constructeur, crée le maillage
@@ -26,40 +54,38 @@ using namespace mesh;
  * @param type object type
  * @param sound path to sound file
  */
-Object::Object(ObjectType type, std::string sound): Mesh("Object") {
-    // matériaux
-    if (type == ObjectType::DUCK) {
-        m_Material = new MaterialTexture("data/10602_Rubber_Duck_v1_diffuse.jpg");
-    } else {
+Object::Object(ObjectType type): Mesh("Object") {
+    std::map<ObjectType, ObjectConfigType>::iterator it = objects_config.find(type);
+    if (it == objects_config.end()) {
         std::cerr << "Unable to find this object type..." << std::endl;
         alGetError();
         throw std::runtime_error("Unknown object type");
     }
+    ObjectConfigType conf = it->second;
+
+    // matériaux
+    m_Material = new MaterialTexture("data/"+conf.diffuse_img);
     setMaterials(m_Material);
     m_Draw = false;
     m_Sound = false;
 
     // charger le fichier obj
-    if (type == ObjectType::DUCK) {
-        loadObj("data/10602_Rubber_Duck_v1_L3.obj");
-    } else {
-        std::cerr << "Unable to find this object type..." << std::endl;
-        alGetError();
-        throw std::runtime_error("Unknown object type");
-    }
+    loadObj("data/"+conf.obj_file);
 
-    // mise à l'échelle et rotation du canard (son .obj est mal orienté et trop grand)
+    // mise à l'échelle et rotation de l'objet (si son .obj est mal orienté et trop grand/petit)
     mat4 correction = mat4::create();
     mat4::identity(correction);
-    mat4::scale(correction, correction, vec3::fromValues(0.15, 0.15, 0.15));
-    mat4::rotateX(correction, correction, Utils::radians(-90));
+    mat4::scale(correction, correction, vec3::fromValues(conf.ratio, conf.ratio, conf.ratio));
+    mat4::rotateX(correction, correction, Utils::radians(conf.rotation_x));
+    mat4::rotateY(correction, correction, Utils::radians(conf.rotation_y));
+    mat4::rotateZ(correction, correction, Utils::radians(conf.rotation_z));
     transform(correction);
 
     // recalcul des normales
     computeNormals();
 
     // ouverture du flux audio à placer dans le buffer
-    std::string soundpathname = sound;
+    std::string soundpathname = "data/"+conf.sound_file;
     buffer = alutCreateBufferFromFile(soundpathname.c_str());
     if (buffer == AL_NONE) {
         std::cerr << "unable to open file " << soundpathname << std::endl;
@@ -76,15 +102,15 @@ Object::Object(ObjectType type, std::string sound): Mesh("Object") {
     alSource3f(source, AL_VELOCITY, 0, 0, 0);
     alSourcei(source, AL_LOOPING, AL_TRUE);
     // dans un cone d'angle [-inner/2,inner/2] il n'y a pas d'attenuation
-    alSourcef(source, AL_CONE_INNER_ANGLE, 20);
+    alSourcef(source, AL_CONE_INNER_ANGLE, conf.inner_angle);
     // dans un cone d'angle [-outer/2,outer/2] il y a une attenuation linéaire entre 0 et le gain
-    alSourcef(source, AL_CONE_OUTER_GAIN, 0);
-    alSourcef(source, AL_CONE_OUTER_ANGLE, 65);
+    alSourcef(source, AL_CONE_OUTER_GAIN, conf.outer_gain);
+    alSourcef(source, AL_CONE_OUTER_ANGLE, conf.outer_angle);
     // à l'extérieur de [-outer/2,outer/2] il y a une attenuation totale
 
     // atténuation linéaire du son selon la distance
     alDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
-    alSourcef(source, AL_MAX_DISTANCE, 20.0f);
+    alSourcef(source, AL_MAX_DISTANCE, conf.max_distance);
 }
 
 

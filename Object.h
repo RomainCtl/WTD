@@ -34,9 +34,8 @@ public:
      * constructeur, crée le maillage
      *
      * @param type object type
-     * @param soudn path to sound file
      */
-    Object(ObjectType type, std::string sound);
+    Object(ObjectType type);
 
     /** destructeur, libère le maillage et l'audio */
     ~Object();

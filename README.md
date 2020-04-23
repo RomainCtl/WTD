@@ -16,11 +16,38 @@ DEBIAN : `sudo apt install g++ mesa-utils libglew-dev libglfw3-dev libsdl2-dev l
 * Build : `make main`
 * Run : `make run`
 
-## Server
+### Server
 
 * Build : `make build-serv`
 * Run : `make run-serv`
 
-## Commons
+### Commons
 
 * Clean : `make clean`
+
+## Configure server
+
+> You just need to edit `server_config.json` file
+
+Default `server_config.json`:
+```json
+{
+    "name":"La marre (au canard)",
+    "max_player": 3,
+    "objects":
+    [
+        {"type":"duck", "position":{"x":-5,"y":0,"z":-10}, "direction":{"x":0,"y":0,"z":0}},
+        {"type":"horse", "position":{"x":5,"y":1,"z":-10}, "direction":{"x":0,"y":90,"z":0}},
+        {"type":"penguin", "position":{"x":10,"y":0,"z":-10}, "direction":{"x":0,"y":0,"z":0}}
+    ]
+}
+```
+
+### Object types
+
+* DUCK *(6640 polygons)*
+* CAT *(35288 polygons)*
+* HORSE *(6016 polygons)*
+* LION *(64536 polygons)*
+* PENGUIN *(5766 polygons)*
+* MONKEY *(47488 polygons)*

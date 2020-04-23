@@ -1,6 +1,7 @@
 .vscode/**
 
 .o/**
+libs/*.o
 image.ppm
 main
 server
