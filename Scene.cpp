@@ -14,7 +14,7 @@
 
 
 /** constructeur */
-Scene::Scene() {
+Scene::Scene(bool third_person) {
     m_Ground = new Ground();
 
     // caractéristiques de la lampe
@@ -45,6 +45,17 @@ Scene::Scene() {
     m_Distance  = 0.0;
     m_Center    = vec3::create();
     m_Clicked   = false;
+
+    lego = new Object(_THIRD_PERSON);
+    lego->setPosition(vec3::fromValues(0, 0, 0));
+    lego->setOrientation(vec3::fromValues(0, Utils::radians(0), 0));
+    lego->setDraw(false);
+    lego->setSound(false);
+
+    if (third_person) {
+        m_Distance = 5.0;
+        lego->setDraw(true);
+    }
 
     // init mouse position
     m_MousePrecX = 0.0;
@@ -178,11 +189,10 @@ void Scene::onDrawFrame()
 
     vec3 player_pos, object_pos;
     vec3::multiply(player_pos, m_Center, vec3::fromValues(-1, -1, -1));
-    double distance;
 
     for (auto &object : m_Objects) {
         object_pos = std::get<1>(object).first->getPosition();
-        distance = std::sqrt(
+        double distance = std::sqrt(
             std::pow(object_pos[0] - player_pos[0], 2.0) +
             std::pow(object_pos[1] - player_pos[1], 2.0) +
             std::pow(object_pos[2] - player_pos[2], 2.0)
@@ -213,7 +223,12 @@ void Scene::onDrawFrame()
         send(client_socket, msg.c_str(), msg.length(), 0);
 
         m_lastPlayerPosition = player_pos; // update last position
+
+        lego->setPosition(m_lastPlayerPosition);
     }
+
+    // set third-person orientation (TODO take care of Elevation ?)
+    lego->setOrientation(vec3::fromValues(0, -Utils::radians( m_Azimut ), 0));
 
     /** gestion des lampes **/
 
@@ -226,6 +241,8 @@ void Scene::onDrawFrame()
         std::get<1>(object).first->setLight(m_Light);
     }
 
+    // enlighten lego
+    lego->setLight(m_Light);
 
     /** dessin de l'image **/
 
@@ -240,6 +257,8 @@ void Scene::onDrawFrame()
         std::get<1>(object).first->onRender(m_MatP, m_MatV);
     }
 
+    // Third person
+    lego->onRender(m_MatP, m_MatV);
 }
 
 

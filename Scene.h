@@ -36,6 +36,9 @@ private:
     float m_Distance;
     vec3 m_Center;
 
+    // For Third-Person perpective
+    Object *lego;
+
     // souris
     bool m_Clicked;
     double m_MousePrecX;
@@ -46,8 +49,12 @@ private:
 
 public:
 
-    /** constructeur, crée les objets 3D à dessiner */
-    Scene();
+    /**
+     * constructeur, crée les objets 3D à dessiner
+     *
+     * @param third_person
+     */
+    Scene(bool third_person);
 
     /** destructeur, libère les ressources */
     ~Scene();
