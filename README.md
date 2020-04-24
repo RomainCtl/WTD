@@ -53,3 +53,7 @@ Default `server_config.json`:
 * LION *(64536 polygons)*
 * PENGUIN *(5766 polygons)*
 * MONKEY *(47488 polygons)*
+
+## First-person and Third-person perspecive
+
+![compare_view](perspective.png)
