@@ -17,6 +17,7 @@
 Scene::Scene() {
     m_Ground = new Ground();
     m_Compass = new Compass();
+    m_CompassNeedle = new CompassNeedle();
 
     // caractéristiques de la lampe
     m_Light = new Light();
@@ -266,14 +267,18 @@ void Scene::onDrawFrame()
     lego->onRender(m_MatP, m_MatV);
 
     // Draw compass
-    glBlendColor(0.3, 0.3, 0.3, 0.3);
+    glDisable(GL_DEPTH_TEST); // to allow superposition
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
 
     m_Compass->onDraw(m_MatP, m_MatV);
 
+    m_CompassNeedle->rotate(m_Azimut);
+    m_CompassNeedle->onDraw(m_MatP, m_MatV);
+
     glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
 }
 
 
