@@ -154,7 +154,7 @@ void deal_with_interface(std::future<void> exit_signal) {
     }
     glfwMakeContextCurrent(window);
     glfwSetWindowPos(window, 200, 200);
-    glfwSetWindowTitle(window, "Cameras - TurnTable");
+    glfwSetWindowTitle(window, "What the Duck !");
 
     // initialisation de glew
     GLenum err = glewInit();
