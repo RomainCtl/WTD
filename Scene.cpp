@@ -16,6 +16,7 @@
 /** constructeur */
 Scene::Scene() {
     m_Ground = new Ground();
+    m_Compass = new Compass();
 
     // caractéristiques de la lampe
     m_Light = new Light();
@@ -263,6 +264,16 @@ void Scene::onDrawFrame()
 
     // Third person
     lego->onRender(m_MatP, m_MatV);
+
+    // Draw compass
+    glBlendColor(0.3, 0.3, 0.3, 0.3);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
+
+    m_Compass->onDraw(m_MatP, m_MatV);
+
+    glDisable(GL_BLEND);
 }
 
 
@@ -273,6 +284,7 @@ Scene::~Scene() {
     }
     m_Objects.clear();
     delete m_Ground;
+    delete m_Compass;
 }
 
 /**
