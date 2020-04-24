@@ -34,6 +34,7 @@ std::map<unsigned int, ObjectDef> objects;
 
 std::thread interface_dealer;
 std::promise<void> interface_dealer_exit_signal;
+bool interface_closed = false;
 
 std::thread keypress_dealer;
 std::promise<void> keypress_dealer_exit_signal;
@@ -119,6 +120,8 @@ void onExit()
     // libération des ressources openal
     alutExit();
 
+    interface_closed = true;
+
     // retour à la ligne final
     std::cout << std::endl;
 }
@@ -154,7 +157,7 @@ void deal_with_interface(std::future<void> exit_signal) {
     }
     glfwMakeContextCurrent(window);
     glfwSetWindowPos(window, 200, 200);
-    glfwSetWindowTitle(window, "Cameras - TurnTable");
+    glfwSetWindowTitle(window, "What the Duck !");
 
     // initialisation de glew
     GLenum err = glewInit();
@@ -334,7 +337,7 @@ int main(int argc, char *argv[]) {
         valread = read(client_socket , buffer, N_CHAR); // PASSIVE WAIT
         buffer[valread] = '\0';
 
-        if (valread == 0) break; // avoid unnecessary treatments
+        if (valread == 0 || interface_closed) break; // avoid unnecessary treatments
 
         messages += buffer;
 

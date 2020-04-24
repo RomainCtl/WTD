@@ -45,6 +45,8 @@ Default `server_config.json`:
 }
 ```
 
+> The __type__ of the object must be in __lower case__, the coordinates of the __position__ are __real__ and the __direction__ is in __degrees__.
+
 ### Object types
 
 * DUCK *(6640 polygons)*
@@ -53,3 +55,7 @@ Default `server_config.json`:
 * LION *(64536 polygons)*
 * PENGUIN *(5766 polygons)*
 * MONKEY *(47488 polygons)*
+
+## First-person and Third-person perspective
+
+![compare_view](perspective.png)

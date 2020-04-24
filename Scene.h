@@ -9,8 +9,9 @@
 
 #include "Object.h"
 #include "Ground.h"
+#include "Compass.h"
+#include "CompassNeedle.h"
 #include "commons.h"
-
 
 
 class Scene
@@ -20,6 +21,8 @@ private:
     // objets de la scène
     std::map<unsigned int, std::pair<Object*, bool> > m_Objects;
     Ground* m_Ground;
+    Compass* m_Compass;
+    CompassNeedle* m_CompassNeedle;
 
     // lampes
     Light* m_Light;
