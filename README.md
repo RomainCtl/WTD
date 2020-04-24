@@ -54,6 +54,6 @@ Default `server_config.json`:
 * PENGUIN *(5766 polygons)*
 * MONKEY *(47488 polygons)*
 
-## First-person and Third-person perspecive
+## First-person and Third-person perspective
 
 ![compare_view](perspective.png)
