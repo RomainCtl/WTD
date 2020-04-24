@@ -45,6 +45,8 @@ Default `server_config.json`:
 }
 ```
 
+> The __type__ of the object must be in __lower case__, the coordinates of the __position__ are __real__ and the __direction__ is in __degrees__.
+
 ### Object types
 
 * DUCK *(6640 polygons)*
