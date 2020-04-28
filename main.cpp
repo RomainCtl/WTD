@@ -224,6 +224,10 @@ void deal_with_interface(std::future<void> exit_signal) {
     );
 
     onExit(); // normal exit
+
+    if (shutdown(client_socket, SHUT_RDWR)) {
+        std::cerr << "Failed to shutdown socket connection !" << std::endl;
+    }
 }
 
 /**
